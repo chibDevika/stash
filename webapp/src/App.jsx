@@ -3,6 +3,7 @@ import { api } from "./api";
 import { clearApiKey, getApiKey } from "./config";
 
 import TopBar from "./components/TopBar";
+import InstallBanner from "./components/InstallBanner";
 import CategoryPills from "./components/CategoryPills";
 import SearchBar from "./components/SearchBar";
 import ItemCard from "./components/ItemCard";
@@ -158,6 +159,7 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      <InstallBanner />
       <TopBar itemCount={isSearching ? null : total} />
 
       <main className="main-content">

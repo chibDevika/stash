@@ -921,4 +921,101 @@ button { cursor: pointer; font-family: var(--font); }
   text-decoration: none;
   font-weight: 600;
 }
+
+/* ── Install banner (mobile PWA prompt) ── */
+.install-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #F0EBE3;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.install-banner-text {
+  flex: 1;
+}
+
+.install-banner-how {
+  background: none;
+  border: none;
+  color: #B85C3A;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.install-banner-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+/* ── Install modal ── */
+.install-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 200;
+  padding: 16px;
+}
+
+.install-modal {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+}
+
+.install-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.install-modal-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+}
+
+.install-modal-steps {
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.install-modal-note {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── ShareTarget spinner ── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 .demo-banner-link:hover { text-decoration: underline; }
