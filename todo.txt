@@ -1,3 +1,0 @@
-- saving should be single click
-- processing should be async
-- handle duplicated saves
