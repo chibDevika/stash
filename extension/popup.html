@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stash</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-brand">
+        <svg class="logo-img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 100" width="14" height="18">
+          <path d="M12,8 Q12,2 18,2 L62,2 Q68,2 68,8 L68,96 L40,78 L12,96 Z" fill="#B85C3A"/>
+          <circle cx="40" cy="24" r="7" fill="#FDF8F2"/>
+        </svg>
+        <span class="logo">Stash</span>
+      </div>
+    </header>
+
+    <!-- Idle state: ready to save -->
+    <div id="state-idle" class="state">
+      <input type="text" class="title-input" id="page-title" placeholder="Page title" />
+      <button id="save-btn" class="save-btn">Save this page</button>
+    </div>
+
+    <!-- Saving state: brief spinner while the request is in-flight -->
+    <div id="state-saving" class="state hidden">
+      <div class="spinner"></div>
+      <p class="status-text">Saving…</p>
+    </div>
+
+    <!-- Saved state: immediate confirmation, no AI data shown -->
+    <div id="state-saved" class="state hidden">
+      <div class="checkmark">&#10003;</div>
+      <p class="status-text saved-text">Saved!</p>
+      <a href="#" id="open-dashboard" class="dashboard-link">Open dashboard</a>
+    </div>
+
+    <!-- Duplicate state: already in stash -->
+    <div id="state-duplicate" class="state hidden">
+      <div class="duplicate-icon">&#9632;</div>
+      <p class="status-text">Already in your Stash</p>
+      <a href="#" id="open-dashboard-dup" class="dashboard-link">Open dashboard</a>
+    </div>
+
+    <!-- Error state -->
+    <div id="state-error" class="state hidden">
+      <div class="error-icon">&#9888;</div>
+      <p class="error-message" id="error-message"></p>
+      <button id="retry-btn" class="save-btn retry">Try again</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

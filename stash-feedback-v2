@@ -1,0 +1,121 @@
+# Stash — UI Polish Brief v2
+*Small targeted fixes only. Do not restructure layout or change anything that's working.*
+
+---
+
+## 1. Search button colour
+Update the Search button background from the muted brown (`#7C6F5B`) to terracotta (`#B85C3A`) to match the logo.
+
+```css
+/* Update this */
+.search-btn {
+  background: #B85C3A;
+}
+.search-btn:hover {
+  background: #A04E30;  /* slightly darker on hover */
+}
+```
+
+---
+
+## 2. Category badge colours
+The current badges (INDIAN AFFAIRS, PERSONAL, SCIENCE & HEALTH) are too close in colour to the card background. They need more pop.
+
+```css
+.category-badge {
+  background: #F5E8E0;       /* light terracotta tint */
+  color: #B85C3A;            /* terracotta text */
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+```
+
+---
+
+## 3. Card title font weight
+Increase card title weight for stronger visual hierarchy against the summary text.
+
+```css
+.card-title {
+  font-weight: 600;   /* was 400 or 500, bump to 600 */
+  color: #1A1A1A;
+}
+```
+
+---
+
+## 4. Spacing between category filters and search bar
+Add more breathing room between the filter pills row and the search bar.
+
+```css
+/* Increase gap between filters and search */
+.filters-row {
+  margin-bottom: 24px;  /* increase from whatever it currently is */
+}
+```
+
+---
+
+## 5. YouTube title cleanup
+Strip artifacts from YouTube titles during content extraction. Common patterns to remove:
+- Leading "(NNN)" view/subscriber counts e.g. "(604)"
+- " - YouTube" suffix at the end of titles
+
+In `services/extractor.py`, clean the title after extraction:
+
+```python
+import re
+
+def clean_title(title: str) -> str:
+    # Remove leading (number) artifacts e.g. "(604) "
+    title = re.sub(r'^\(\d+\)\s*', '', title)
+    # Remove " - YouTube" suffix
+    title = re.sub(r'\s*[-–]\s*YouTube\s*$', '', title, flags=re.IGNORECASE)
+    return title.strip()
+```
+
+Call `clean_title()` on the extracted title before saving to DB.
+
+---
+
+## 6. Category filter pills — single row
+If the pills are wrapping to two rows, force a horizontal scroll instead so the layout stays tight.
+
+```css
+.filters-row {
+  display: flex;
+  flex-wrap: nowrap;        /* prevent wrapping */
+  overflow-x: auto;         /* horizontal scroll if needed */
+  gap: 8px;
+  padding-bottom: 4px;      /* space for scrollbar if visible */
+  scrollbar-width: none;    /* hide scrollbar on Firefox */
+}
+.filters-row::-webkit-scrollbar {
+  display: none;            /* hide scrollbar on Chrome */
+}
+```
+
+---
+
+## 7. Active filter pill — use terracotta
+The "All" selected pill is currently dark brown. Update to terracotta to stay consistent with the accent colour.
+
+```css
+.filter-pill.active {
+  background: #B85C3A;
+  color: #ffffff;
+  border-color: #B85C3A;
+}
+```
+
+---
+
+## Summary of files to touch
+- `webapp/src/styles/` — items 1, 2, 3, 4, 6, 7 (CSS only)
+- `backend/services/extractor.py` — item 5 (title cleanup)
+
+Do not touch any other files. These are cosmetic fixes only.

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stash Settings</title>
+  <style>
+    :root {
+      --bg: #FAFAF8;
+      --text: #1A1A1A;
+      --accent: #7C6F5B;
+      --border: #E8E4DD;
+      --muted: #888;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      padding: 40px;
+      max-width: 480px;
+    }
+    h1 { font-size: 20px; color: var(--accent); margin-bottom: 8px; }
+    p.subtitle { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: var(--font);
+      background: white;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    .hint { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
+    button {
+      padding: 10px 20px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: var(--font);
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.85; }
+    .saved-msg { display: none; font-size: 13px; color: #5a8a5a; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Stash Settings</h1>
+  <p class="subtitle">Configure where Stash sends saved pages.</p>
+
+  <div>
+    <label for="backend-url">Backend URL</label>
+    <input
+      type="text"
+      id="backend-url"
+      placeholder="http://localhost:8000"
+    />
+    <p class="hint">Default: http://localhost:8000 (when running with Docker Compose)</p>
+  </div>
+
+  <div>
+    <label for="frontend-url">Dashboard URL</label>
+    <input
+      type="text"
+      id="frontend-url"
+      placeholder="http://localhost:3000"
+    />
+    <p class="hint">URL of the web dashboard (opened by the "Open dashboard" link).</p>
+  </div>
+
+  <div>
+    <label for="api-key">API Key</label>
+    <input
+      type="text"
+      id="api-key"
+      placeholder="Leave empty if not using auth"
+    />
+    <p class="hint">Set this to your SECRET_KEY if you've configured auth on your backend. Leave empty for local dev.</p>
+  </div>
+
+  <button id="save-btn">Save settings</button>
+  <p class="saved-msg" id="saved-msg">Settings saved!</p>
+
+  <script src="options.js"></script>
+</body>
+</html>

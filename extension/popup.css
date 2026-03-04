@@ -1,0 +1,159 @@
+:root {
+  --bg: #FAFAF8;
+  --text: #1A1A1A;
+  --accent: #7C6F5B;
+  --border: #E8E4DD;
+  --muted: #888;
+  --success: #5A8A6A;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 280px;
+  min-height: 120px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+}
+
+.container {
+  padding: 16px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.logo-img {
+  width: 14px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.logo {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.options-link {
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.options-link:hover { color: var(--accent); }
+
+/* States */
+.state { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.hidden { display: none !important; }
+
+/* Editable title input */
+.title-input {
+  width: 100%;
+  font-size: 12px;
+  color: var(--text);
+  font-family: var(--font);
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  padding: 2px 4px;
+  margin-bottom: 4px;
+  transition: border-color 0.15s;
+  outline: none;
+}
+.title-input:hover {
+  border-bottom-color: var(--border);
+}
+.title-input:focus {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+/* Save button */
+.save-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.save-btn:hover { opacity: 0.85; }
+.save-btn.retry { background: var(--muted); }
+
+/* Spinner */
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Status text */
+.status-text {
+  font-size: 13px;
+  color: var(--muted);
+}
+.saved-text { color: var(--success); font-weight: 500; }
+
+/* Checkmark */
+.checkmark {
+  font-size: 28px;
+  color: var(--success);
+}
+
+/* Duplicate icon */
+.duplicate-icon {
+  font-size: 20px;
+  color: var(--accent);
+  opacity: 0.5;
+}
+
+/* Dashboard link */
+.dashboard-link {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  margin-top: 4px;
+}
+.dashboard-link:hover { text-decoration: underline; }
+
+/* Error */
+.error-icon {
+  font-size: 24px;
+  color: #c0392b;
+}
+.error-message {
+  font-size: 12px;
+  color: #c0392b;
+  text-align: center;
+  line-height: 1.5;
+}
