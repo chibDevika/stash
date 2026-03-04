@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { api } from "../api";
 
 import DemoBanner from "../components/DemoBanner";
+import TopBar from "../components/TopBar";
 
 // ── Detect natural language questions vs keyword searches ─────────────────────
 const QUESTION_PREFIX = /^(what|how|why|where|when|who|find|show|tell|explain|is|are|does|did|can|could|should|would)\b/i;
@@ -19,34 +20,34 @@ function DemoCard({ item, onClick }) {
   const summaryLine = item.summary ? item.summary.split("\n")[0] : "";
 
   return (
-    <div className="item-card" onClick={onClick} style={{ cursor: "pointer" }}>
-      <div className="card-meta">
+    <article className="item-card" onClick={onClick}>
+      <div className="item-card-meta">
         {item.favicon_url && (
           <img
-            className="card-favicon"
+            className="item-favicon"
             src={item.favicon_url}
             alt=""
             onError={(e) => { e.target.style.display = "none"; }}
           />
         )}
-        <span className="card-source">{source}</span>
+        <span className="item-source">{source}</span>
         {item.category && (
-          <span className="card-category-badge">{item.category}</span>
+          <span className="item-category-badge">{item.category}</span>
         )}
-        {date && <span className="card-date-badge">{date}</span>}
+        {date && <span className="item-date">{date}</span>}
       </div>
 
-      <h3 className="card-title">{item.title}</h3>
-      {summaryLine && <p className="card-summary">{summaryLine}</p>}
+      <h2 className="item-title">{item.title}</h2>
+      {summaryLine && <p className="item-summary">{summaryLine}</p>}
 
       {item.tags?.length > 0 && (
-        <div className="card-tags">
+        <div className="item-tags-row">
           {item.tags.slice(0, 4).map((tag) => (
             <span key={tag} className="tag">{tag}</span>
           ))}
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -223,19 +224,13 @@ export default function Demo() {
     <div className="app-layout">
       <DemoBanner />
 
-      {/* TopBar */}
-      <header className="top-bar">
-        <span className="top-bar-logo">Stash</span>
-        <span className="top-bar-count">
-          {!isSearching && items.length > 0 ? `${items.length} items` : ""}
-        </span>
-      </header>
+      <TopBar itemCount={!isSearching && items.length > 0 ? items.length : null} />
 
       <main className="main-content">
         {/* Category pills */}
-        <div className="category-pills-row">
+        <div className="category-pills">
           <button
-            className={`pill ${!activeCategory ? "pill--active" : ""}`}
+            className={`pill${!activeCategory ? " active" : ""}`}
             onClick={() => setActiveCategory(null)}
           >
             All
@@ -243,7 +238,7 @@ export default function Demo() {
           {categories.map((cat) => (
             <button
               key={cat}
-              className={`pill ${activeCategory === cat ? "pill--active" : ""}`}
+              className={`pill${activeCategory === cat ? " active" : ""}`}
               onClick={() => setActiveCategory(cat)}
             >
               {cat}
