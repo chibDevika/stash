@@ -85,18 +85,21 @@ function DemoDetailPanel({ item, onClose }) {
   return (
     <>
       <div className="panel-overlay" onClick={onClose} />
-      <div className="item-detail-panel">
+      <aside className="detail-panel">
         <div className="panel-header">
-          <a className="panel-title-link" href={item.url} target="_blank" rel="noopener noreferrer">
-            {item.title}
-          </a>
-          <button className="panel-close-btn" onClick={onClose} title="Close">×</button>
+          <h2 className="panel-title">
+            <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>
+              {item.title}
+            </a>
+          </h2>
+          <button className="panel-close" onClick={onClose} title="Close">×</button>
         </div>
 
+        <div className="panel-body">
         <div className="panel-meta">
           <span className="panel-source">{source}</span>
           {date && <span className="panel-date">{date}</span>}
-          {item.category && <span className="panel-category-text">{item.category}</span>}
+          {item.category && <span className="panel-category">{item.category}</span>}
         </div>
 
         {/* Summary */}
@@ -147,7 +150,8 @@ function DemoDetailPanel({ item, onClose }) {
           {chatError && <p className="item-chat-error">{chatError}</p>}
           {answer && <div className="item-chat-answer">{answer}</div>}
         </div>
-      </div>
+        </div>
+      </aside>
     </>
   );
 }
