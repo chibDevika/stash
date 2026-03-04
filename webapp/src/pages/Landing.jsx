@@ -24,10 +24,7 @@ export default function Landing({ onEnterDemo, onAuthenticated }) {
       <div className="landing-box">
         {/* Logo */}
         <div className="landing-logo">
-          <svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4 0H24C26.2091 0 28 1.79086 28 4V30L14 36L0 30V4C0 1.79086 1.79086 0 4 0Z" fill="#B85C3A"/>
-            <path d="M8 10H20M8 16H20M8 22H16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
+          <img src="/stash-logo.svg" alt="" className="landing-logo-img" />
           <span className="landing-logo-text">Stash</span>
         </div>
 
