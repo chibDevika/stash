@@ -16,4 +16,7 @@ Thumbs.db
 # ── Docker ───────────────────────────────────────────────────────────────────
 # Keep docker-compose.yml but ignore override files
 docker-compose.override.yml
+
+# ── Docs ─────────────────────────────────────────────────────────────────────
 *.md
+!README.md
