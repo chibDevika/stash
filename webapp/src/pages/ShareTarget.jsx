@@ -15,11 +15,14 @@ export default function ShareTarget() {
       return;
     }
 
+    // API key: prefer URL param (set in iOS Shortcut) then fall back to localStorage
+    const apiKey = searchParams.get("key") || getApiKey() || "";
+
     fetch(`${BACKEND_URL}/save`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": getApiKey() || "",
+        "X-API-Key": apiKey,
       },
       body: JSON.stringify({ url, title }),
     })
