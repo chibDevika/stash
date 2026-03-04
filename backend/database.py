@@ -17,10 +17,11 @@ def _build_async_url(raw: str) -> tuple[str, dict]:
     url = raw.replace("postgresql://", "postgresql+asyncpg://").replace("postgres://", "postgresql+asyncpg://")
     parsed = urlparse(url)
     params = parse_qs(parsed.query, keep_blank_values=True)
+    # Detect SSL requirement before stripping — Neon always needs SSL
     has_ssl = "sslmode" in params or "neon" in raw
-    params.pop("sslmode", None)  # asyncpg uses connect_args ssl= instead
-    clean_query = urlencode({k: v[0] for k, v in params.items()})
-    clean_url = urlunparse(parsed._replace(query=clean_query))
+    # Strip ALL query params — asyncpg doesn't accept any (sslmode, channel_binding,
+    # connect_timeout, etc.). SSL is passed via connect_args instead.
+    clean_url = urlunparse(parsed._replace(query=""))
     connect_args = {"ssl": True} if has_ssl else {}
     return clean_url, connect_args
 
