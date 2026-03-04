@@ -36,10 +36,11 @@ CREATE TABLE IF NOT EXISTS items (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Index for vector similarity search (cosine distance)
+-- Index for vector similarity search (cosine distance).
+-- HNSW gives better recall and faster queries than ivfflat for small-to-medium datasets.
 CREATE INDEX IF NOT EXISTS items_embedding_idx
-    ON items USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
+    ON items USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
 
 -- Index for full-text search on title + content
 -- manual_tags are searched at query time (array_to_string isn't IMMUTABLE so can't be indexed)

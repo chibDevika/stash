@@ -14,6 +14,30 @@ import Demo from "./pages/Demo";
 
 const PAGE_SIZE = 20;
 
+// Categories change very rarely — cache them in localStorage so pills render
+// instantly on load instead of waiting for an API round-trip.
+const CATS_CACHE_KEY = "stash_categories_v1";
+const CATS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function loadCachedCategories() {
+  try {
+    const raw = localStorage.getItem(CATS_CACHE_KEY);
+    if (!raw) return null;
+    const { data, at } = JSON.parse(raw);
+    return Date.now() - at < CATS_TTL_MS ? data : null;
+  } catch { return null; }
+}
+
+function persistCategories(cats) {
+  try {
+    localStorage.setItem(CATS_CACHE_KEY, JSON.stringify({ data: cats, at: Date.now() }));
+  } catch {}
+}
+
+function bustCategoriesCache() {
+  try { localStorage.removeItem(CATS_CACHE_KEY); } catch {}
+}
+
 export default function App() {
   // ── View routing: 'loading' | 'landing' | 'demo' | 'dashboard' ──────────────
   const [view, setView] = useState("loading");
@@ -65,8 +89,12 @@ export default function App() {
   // ── Load categories ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (view !== "dashboard") return;
+    // Show cached value immediately so pills appear without a spinner,
+    // then always refetch in background to stay fresh.
+    const cached = loadCachedCategories();
+    if (cached) setCategories(cached);
     api.getCategories()
-      .then(setCategories)
+      .then((cats) => { setCategories(cats); persistCategories(cats); })
       .catch(() => {}); // non-fatal
   }, [view]);
 
@@ -101,7 +129,11 @@ export default function App() {
   }
 
   function handleCategoryCreated(cat) {
-    setCategories((prev) => [...prev, cat]);
+    setCategories((prev) => {
+      const updated = [...prev, cat];
+      persistCategories(updated);
+      return updated;
+    });
   }
 
   // ── Search / Q&A actions ────────────────────────────────────────────────────

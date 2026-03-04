@@ -17,6 +17,11 @@ _client = genai.Client(api_key=GEMINI_API_KEY)
 GENERATIVE_MODEL = "gemini-2.5-flash"
 EMBEDDING_MODEL = "models/gemini-embedding-001"
 
+# Cache query embeddings — same text always produces the same vector (deterministic).
+# Capped at 512 entries to keep memory bounded (~3 MB max at 768 floats each).
+_MAX_EMBEDDING_CACHE = 512
+_embedding_cache: dict[str, list[float]] = {}
+
 
 async def summarize(title: str, content: str, categories: list[str] | None = None) -> dict:
     """
@@ -111,7 +116,10 @@ async def generate_embedding(text: str) -> list[float]:
     """
     Generate a 768-dimensional embedding vector using text-embedding-004.
     Used for semantic search via pgvector cosine similarity.
+    Results are cached — same text always produces the same vector.
     """
+    if text in _embedding_cache:
+        return _embedding_cache[text]
     try:
         result = await _client.aio.models.embed_content(
             model=EMBEDDING_MODEL,
@@ -121,7 +129,12 @@ async def generate_embedding(text: str) -> list[float]:
                 output_dimensionality=768,  # match pgvector schema
             ),
         )
-        return result.embeddings[0].values
+        vector = result.embeddings[0].values
+        if len(_embedding_cache) >= _MAX_EMBEDDING_CACHE:
+            # Evict oldest entry (insertion-order dict since Python 3.7)
+            _embedding_cache.pop(next(iter(_embedding_cache)))
+        _embedding_cache[text] = vector
+        return vector
     except Exception as e:
         print(f"[gemini] embedding failed: {e}")
         return []
