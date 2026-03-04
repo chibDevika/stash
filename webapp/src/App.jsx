@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "./api";
-import { clearApiKey } from "./config";
+import { clearApiKey, getApiKey } from "./config";
 
 import TopBar from "./components/TopBar";
 import CategoryPills from "./components/CategoryPills";
@@ -40,15 +40,17 @@ export default function App() {
 
   // ── Auth check on mount + listen for 401 events ─────────────────────────────
   useEffect(() => {
-    api.health()
+    // /health is unprotected — validate against a protected endpoint instead.
+    // If no key is stored at all, skip the network call and go straight to landing.
+    if (!getApiKey()) {
+      setView("landing");
+      return;
+    }
+    api.getCategories()
       .then(() => setView("dashboard"))
-      .catch((err) => {
-        if (err.status === 401) {
-          setView("landing");
-        } else {
-          // Network error — show landing so user can try entering a key or demo
-          setView("landing");
-        }
+      .catch(() => {
+        clearApiKey();
+        setView("landing");
       });
 
     const handleUnauthorized = () => {
