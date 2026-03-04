@@ -19,6 +19,7 @@ export default function SearchBar({ onResults, onClear }) {
     const v = e.target.value;
     setQuery(v);
     setQaMode(v.trim().length > 2 && isQuestion(v));
+    if (v === "") onClear();
   }
 
   async function handleSubmit(e) {
