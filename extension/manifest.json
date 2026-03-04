@@ -10,7 +10,9 @@
   "options_page": "options.html",
   "host_permissions": [
     "http://localhost/*",
-    "http://127.0.0.1/*"
+    "http://127.0.0.1/*",
+    "https://*.railway.app/*",
+    "https://*.vercel.app/*"
   ],
   "action": {
     "default_popup": "popup.html",

@@ -1,4 +1,5 @@
-from fastapi import Request, HTTPException
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from config import SECRET_KEY
 
 
@@ -18,6 +19,8 @@ async def verify_api_key(request: Request, call_next):
 
     api_key = request.headers.get("X-API-Key")
     if api_key != SECRET_KEY:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        # Return JSONResponse directly — raising HTTPException inside BaseHTTPMiddleware
+        # causes Starlette to wrap it in a 500 error instead of returning 401.
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
 
     return await call_next(request)
