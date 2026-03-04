@@ -80,6 +80,7 @@ async def update_item_ai(db: AsyncSession, item_id: str, data: dict) -> None:
     await db.execute(
         text("""
             UPDATE items SET
+                title       = COALESCE(:title, title),
                 content     = :content,
                 summary     = :summary,
                 tags        = :tags,
@@ -90,6 +91,7 @@ async def update_item_ai(db: AsyncSession, item_id: str, data: dict) -> None:
         """),
         {
             "id": item_id,
+            "title": data.get("title") or None,
             "content": data.get("content", ""),
             "summary": data.get("summary", ""),
             "tags": data.get("tags", []),

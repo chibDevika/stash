@@ -72,8 +72,10 @@ async def save_url(
         extracted_title = url
         favicon_url = ""
 
-    # User-provided title from extension takes precedence over auto-extracted
-    title = request.title.strip() if request.title and request.title.strip() else extracted_title
+    # User-provided title from extension takes precedence over auto-extracted,
+    # but clean YouTube artifacts ((605), - YouTube) regardless of source.
+    raw_title = request.title.strip() if request.title and request.title.strip() else extracted_title
+    title = extractor.clean_title(raw_title)
 
     # Persist immediately with status='pending'
     item = await db_service.save_item(session, {
@@ -126,8 +128,9 @@ async def process_item_ai(item_id: str, url: str, title: str) -> None:
             embedding_text = f"{richer_title} {ai_result.get('summary', '')}"
             embedding = await gemini.generate_embedding(embedding_text)
 
-            # Step 6: Update DB with all AI data
+            # Step 6: Update DB with all AI data (title may be richer than pending insert)
             await db_service.update_item_ai(db, item_id, {
+                "title": richer_title,
                 "content": content,
                 "summary": ai_result.get("summary", ""),
                 "tags": ai_result.get("tags", []),

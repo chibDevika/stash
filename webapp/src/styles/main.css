@@ -91,15 +91,11 @@ button { cursor: pointer; font-family: var(--font); }
 /* ── Category pills ── */
 .category-pills {
   display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 36px;
   align-items: center;
-  padding-bottom: 4px;
 }
-.category-pills::-webkit-scrollbar { display: none; }
 
 .pill {
   padding: 5px 14px;
