@@ -104,7 +104,7 @@ function DemoDetailPanel({ item, onClose }) {
 
         {/* Summary */}
         {overview && (
-          <div className="panel-section">
+          <div>
             <div className="panel-section-label">Summary</div>
             <p className="panel-summary">{overview}</p>
             {bullets.length > 0 && (
@@ -119,9 +119,9 @@ function DemoDetailPanel({ item, onClose }) {
 
         {/* Tags */}
         {item.tags?.length > 0 && (
-          <div className="panel-section">
+          <div className="panel-tags-section">
             <div className="panel-section-label">Tags</div>
-            <div className="panel-tags">
+            <div className="panel-tags-row">
               {item.tags.map((t) => (
                 <span key={t} className="tag">{t}</span>
               ))}
@@ -130,7 +130,7 @@ function DemoDetailPanel({ item, onClose }) {
         )}
 
         {/* Demo chat (uses /demo/query — all demo items as context) */}
-        <div className="panel-section">
+        <div>
           <div className="panel-section-label">Chat about this</div>
           <div className="item-chat">
             <form className="item-chat-input-row" onSubmit={handleChat}>
