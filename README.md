@@ -109,6 +109,30 @@ In the detail panel, type a tag and press Enter to add it. Click `×` on any tag
 
 ---
 
+## Saving from iPhone
+
+iOS doesn't support the Web Share Target API, so the share sheet integration uses an **iOS Shortcut** that calls the API directly.
+
+### One-time setup
+
+1. Open the **Shortcuts** app → tap **+**
+2. Add action: **Receive** [URLs] from Share Sheet
+3. Add action: **Get URLs from** Shortcut Input
+4. Add action: **Get Contents of URL**
+   - URL: `https://your-railway-url.up.railway.app/save`
+   - Method: **POST**
+   - Headers: `X-API-Key` = your `SECRET_KEY`, `Content-Type` = `application/json`
+   - Request Body: **JSON** → add field `url` = [URLs variable from step 3]
+5. Add action: **Show Notification** → `Saved to Stash ✓`
+6. Tap the shortcut name → rename to **"Stash"**
+7. Tap **⚙️** → enable **"Show in Share Sheet"**
+
+### Using it
+
+From any app (Safari, YouTube, Chrome) → tap **Share** → tap **Stash** → notification appears → item saved.
+
+---
+
 ## Extension settings
 
 Right-click the Stash icon → **Options** (or click the gear icon in the popup) to configure:
