@@ -538,6 +538,20 @@ button { cursor: pointer; font-family: var(--font); }
   gap: 10px;
   font-size: 13px;
   color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.panel-source { color: var(--text-muted); }
+.panel-date   { color: var(--text-muted); }
+.panel-category {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #B85C3A;
+  background: #F5E8E0;
+  padding: 2px 8px;
+  border-radius: 20px;
 }
 
 .panel-section-label {

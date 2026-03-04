@@ -132,23 +132,25 @@ function DemoDetailPanel({ item, onClose }) {
         {/* Demo chat (uses /demo/query — all demo items as context) */}
         <div className="panel-section">
           <div className="panel-section-label">Chat about this</div>
-          <form className="item-chat-form" onSubmit={handleChat}>
-            <input
-              className="item-chat-input"
-              placeholder="Ask something about this…"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-            />
-            <button
-              type="submit"
-              className="item-chat-btn"
-              disabled={chatLoading || !question.trim()}
-            >
-              {chatLoading ? "…" : "Ask"}
-            </button>
-          </form>
-          {chatError && <p className="item-chat-error">{chatError}</p>}
-          {answer && <div className="item-chat-answer">{answer}</div>}
+          <div className="item-chat">
+            <form className="item-chat-input-row" onSubmit={handleChat}>
+              <input
+                className="item-chat-input"
+                placeholder="Ask something about this…"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="item-chat-btn"
+                disabled={chatLoading || !question.trim()}
+              >
+                {chatLoading ? "…" : "Ask"}
+              </button>
+            </form>
+            {chatError && <p className="item-chat-error">{chatError}</p>}
+            {answer && <div className="item-chat-answer">{answer}</div>}
+          </div>
         </div>
         </div>
       </aside>
