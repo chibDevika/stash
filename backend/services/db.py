@@ -221,6 +221,25 @@ async def update_item_tags(
     return d
 
 
+async def update_item_title(db: AsyncSession, item_id: str, title: str) -> dict | None:
+    """Update the display title for an item."""
+    await db.execute(
+        text("UPDATE items SET title = :title WHERE id = :id"),
+        {"title": title, "id": item_id},
+    )
+    await db.commit()
+    result = await db.execute(
+        text("SELECT * FROM items WHERE id = :id"),
+        {"id": item_id},
+    )
+    row = result.mappings().fetchone()
+    if not row:
+        return None
+    d = _row_to_dict(row)
+    d.pop("content", None)
+    return d
+
+
 async def update_item_category(
     db: AsyncSession, item_id: str, category_id: str
 ) -> dict | None:

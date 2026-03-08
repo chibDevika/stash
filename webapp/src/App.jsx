@@ -9,6 +9,7 @@ import SearchBar from "./components/SearchBar";
 import ItemCard from "./components/ItemCard";
 import ItemDetailPanel from "./components/ItemDetailPanel";
 import EmptyState from "./components/EmptyState";
+import PdfDropZone from "./components/PdfDropZone";
 import Landing from "./pages/Landing";
 import Demo from "./pages/Demo";
 
@@ -25,17 +26,24 @@ function loadCachedCategories() {
     if (!raw) return null;
     const { data, at } = JSON.parse(raw);
     return Date.now() - at < CATS_TTL_MS ? data : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function persistCategories(cats) {
   try {
-    localStorage.setItem(CATS_CACHE_KEY, JSON.stringify({ data: cats, at: Date.now() }));
+    localStorage.setItem(
+      CATS_CACHE_KEY,
+      JSON.stringify({ data: cats, at: Date.now() }),
+    );
   } catch {}
 }
 
 function bustCategoriesCache() {
-  try { localStorage.removeItem(CATS_CACHE_KEY); } catch {}
+  try {
+    localStorage.removeItem(CATS_CACHE_KEY);
+  } catch {}
 }
 
 export default function App() {
@@ -71,7 +79,8 @@ export default function App() {
       setView("landing");
       return;
     }
-    api.getCategories()
+    api
+      .getCategories()
       .then(() => setView("dashboard"))
       .catch(() => {
         clearApiKey();
@@ -83,7 +92,8 @@ export default function App() {
       setView("landing");
     };
     window.addEventListener("stash:unauthorized", handleUnauthorized);
-    return () => window.removeEventListener("stash:unauthorized", handleUnauthorized);
+    return () =>
+      window.removeEventListener("stash:unauthorized", handleUnauthorized);
   }, []);
 
   // ── Load categories ─────────────────────────────────────────────────────────
@@ -93,8 +103,12 @@ export default function App() {
     // then always refetch in background to stay fresh.
     const cached = loadCachedCategories();
     if (cached) setCategories(cached);
-    api.getCategories()
-      .then((cats) => { setCategories(cats); persistCategories(cats); })
+    api
+      .getCategories()
+      .then((cats) => {
+        setCategories(cats);
+        persistCategories(cats);
+      })
       .catch(() => {}); // non-fatal
   }, [view]);
 
@@ -161,7 +175,9 @@ export default function App() {
 
   // ── Item update (from panel tag/category edits) ────────────────────────────
   function handleItemUpdated(updated) {
-    setItems((prev) => prev.map((i) => i.id === updated.id ? { ...i, ...updated } : i));
+    setItems((prev) =>
+      prev.map((i) => (i.id === updated.id ? { ...i, ...updated } : i)),
+    );
     if (selectedItem?.id === updated.id) {
       setSelectedItem((prev) => ({ ...prev, ...updated }));
     }
@@ -191,6 +207,7 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      <PdfDropZone onSaved={() => loadItems(1, activeCategoryId)} />
       <InstallBanner />
       <TopBar itemCount={isSearching ? null : total} />
 
@@ -202,7 +219,10 @@ export default function App() {
           onCreated={handleCategoryCreated}
         />
 
-        <SearchBar onResults={handleSearchResults} onClear={handleSearchClear} />
+        <SearchBar
+          onResults={handleSearchResults}
+          onClear={handleSearchClear}
+        />
 
         {/* Q&A answer box */}
         {isSearching && searchResult?.type === "qa" && (
@@ -278,7 +298,9 @@ export default function App() {
             >
               ← Previous
             </button>
-            <span className="page-indicator">Page {page} of {totalPages}</span>
+            <span className="page-indicator">
+              Page {page} of {totalPages}
+            </span>
             <button
               className="page-btn"
               disabled={page >= totalPages}

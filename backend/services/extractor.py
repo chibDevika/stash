@@ -3,12 +3,15 @@ Content extraction service.
 
 - Articles: trafilatura — extracts clean main text from any webpage
 - YouTube: youtube-transcript-api — fetches transcript + video metadata
+- PDFs: pypdf — extracts text from uploaded PDF files
 """
 
 import re
 import ipaddress
+import html as html_module
 import httpx
 import trafilatura
+from io import BytesIO
 from urllib.parse import urlparse
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled
@@ -103,7 +106,7 @@ async def extract_youtube(url: str) -> dict:
             html = resp.text
             title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
             if title_match:
-                title = clean_title(title_match.group(1))
+                title = clean_title(html_module.unescape(title_match.group(1)))
     except Exception:
         pass  # title fallback is fine
 
@@ -145,11 +148,40 @@ async def extract_metadata(url: str) -> tuple[str, str]:
             html = resp.text
             title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
             if title_match:
-                title = title_match.group(1).strip()
+                title = html_module.unescape(title_match.group(1).strip())
     except Exception:
         pass  # fallback values are fine
 
     return title, favicon_url
+
+
+def extract_pdf(content: bytes) -> tuple[str | None, str]:
+    """
+    Extract text and title from a PDF file's raw bytes.
+
+    Returns: (title, text) where title may be None if not set in PDF metadata.
+    Caller should fall back to the filename when title is None.
+    """
+    from pypdf import PdfReader
+
+    reader = PdfReader(BytesIO(content))
+
+    # Title from PDF metadata if available
+    title: str | None = None
+    if reader.metadata and reader.metadata.title:
+        title = reader.metadata.title.strip() or None
+
+    # Join all pages, strip excess whitespace
+    pages_text = []
+    for page in reader.pages:
+        page_text = page.extract_text() or ""
+        pages_text.append(page_text)
+
+    text = "\n".join(pages_text)
+    # Collapse runs of blank lines to a single blank line
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+
+    return title, text
 
 
 async def extract_article(url: str) -> dict:
@@ -179,7 +211,7 @@ async def extract_article(url: str) -> dict:
 
     # Extract title from the HTML <title> tag
     title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
-    title = clean_title(title_match.group(1)) if title_match else url
+    title = clean_title(html_module.unescape(title_match.group(1))) if title_match else url
 
     # Build favicon URL from the domain
     from urllib.parse import urlparse

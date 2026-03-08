@@ -3,12 +3,13 @@ Item CRUD routes:
   GET    /items                    — paginated list, optional ?category_id= filter
   GET    /items/{id}               — single item detail (includes content)
   DELETE /items/{id}               — remove an item
+  PATCH  /items/{id}/title         — rename an item
   PATCH  /items/{id}/tags          — add/remove manual tags
   PATCH  /items/{id}/category      — override category
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
@@ -51,6 +52,22 @@ async def delete_item(item_id: str, session: AsyncSession = Depends(get_db)):
     if not deleted:
         raise HTTPException(status_code=404, detail="Item not found")
     return {"ok": True}
+
+
+class UpdateTitleRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=500)
+
+
+@router.patch("/items/{item_id}/title")
+async def update_title(
+    item_id: str,
+    request: UpdateTitleRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    item = await db_service.update_item_title(session, item_id, request.title.strip())
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
 
 
 @router.patch("/items/{item_id}/tags")

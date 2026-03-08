@@ -27,7 +27,9 @@ async function request(method, path, body) {
       window.dispatchEvent(new CustomEvent("stash:unauthorized"));
     }
     // Preserve status code on the thrown error so callers can handle 409 etc.
-    const error = new Error(err.detail?.message || err.detail || `Request failed: ${res.status}`);
+    const error = new Error(
+      err.detail?.message || err.detail || `Request failed: ${res.status}`,
+    );
     error.status = res.status;
     error.detail = err.detail;
     throw error;
@@ -47,6 +49,9 @@ export const api = {
 
   deleteItem: (id) => request("DELETE", `/items/${id}`),
 
+  updateItemTitle: (id, title) =>
+    request("PATCH", `/items/${id}/title`, { title }),
+
   updateItemTags: (id, add = [], remove = []) =>
     request("PATCH", `/items/${id}/tags`, { add, remove }),
 
@@ -55,6 +60,32 @@ export const api = {
 
   // ── Save ───────────────────────────────────────────────────────────────────
   saveUrl: (url) => request("POST", "/save", { url }),
+
+  uploadPdf: (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    const headers = {};
+    const apiKey = getApiKey();
+    if (apiKey) headers["X-API-Key"] = apiKey;
+    return fetch(`${BASE}/save/pdf`, {
+      method: "POST",
+      headers,
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (res.status === 401)
+          window.dispatchEvent(new CustomEvent("stash:unauthorized"));
+        const error = new Error(
+          err.detail?.message || err.detail || `Request failed: ${res.status}`,
+        );
+        error.status = res.status;
+        error.detail = err.detail;
+        throw error;
+      }
+      return res.json();
+    });
+  },
 
   // ── Categories ─────────────────────────────────────────────────────────────
   getCategories: () => request("GET", "/categories"),
@@ -71,7 +102,8 @@ export const api = {
   query: (question) => request("POST", "/query", { question }),
 
   // ── Per-item chat ──────────────────────────────────────────────────────────
-  queryItem: (id, question) => request("POST", `/query/item/${id}`, { question }),
+  queryItem: (id, question) =>
+    request("POST", `/query/item/${id}`, { question }),
 
   // ── Health ─────────────────────────────────────────────────────────────────
   health: () => request("GET", "/health"),

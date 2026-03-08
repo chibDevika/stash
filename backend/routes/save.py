@@ -12,9 +12,10 @@ POST /save — async save pipeline.
    - Update DB with status='processed'
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel, Field
 from urllib.parse import urlparse
+from hashlib import sha256
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db, AsyncSessionLocal
@@ -90,22 +91,82 @@ async def save_url(
     return item
 
 
-async def process_item_ai(item_id: str, url: str, title: str) -> None:
+@router.post("/save/pdf")
+async def save_pdf(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_db),
+):
+    # Validate content type and size (20 MB limit)
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=422, detail="Only PDF files are supported.")
+
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="PDF must be 20 MB or smaller.")
+
+    # Extract text and title from the PDF
+    try:
+        pdf_title, extracted_text = extractor.extract_pdf(pdf_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Could not read PDF: {e}")
+
+    # Fall back to the uploaded filename (strip .pdf extension) if no metadata title
+    if not pdf_title:
+        raw_name = file.filename or "Untitled PDF"
+        if raw_name.lower().endswith(".pdf"):
+            raw_name = raw_name[:-4]
+        pdf_title = raw_name.strip() or "Untitled PDF"
+
+    # Stable unique URL derived from file content — no migration needed
+    pdf_url = f"pdf://sha256:{sha256(pdf_bytes).hexdigest()}"
+
+    # Duplicate check
+    existing = await db_service.get_item_by_url(session, pdf_url)
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "duplicate", "message": "Already in your Stash"},
+        )
+
+    # Persist immediately with status='pending'
+    item = await db_service.save_item(session, {
+        "url": pdf_url,
+        "title": pdf_title,
+        "favicon_url": None,
+    })
+
+    # Queue AI processing — pass extracted text so background task skips re-fetching
+    background_tasks.add_task(
+        process_item_ai, item["id"], pdf_url, pdf_title, content=extracted_text
+    )
+
+    return item
+
+
+async def process_item_ai(
+    item_id: str, url: str, title: str, content: str | None = None
+) -> None:
     """
     Background task: extract content, summarize, embed, update DB.
     Uses its own DB session (BackgroundTasks run after the request session closes).
+
+    If `content` is provided (e.g. from a PDF upload), content extraction is skipped.
     """
     async with AsyncSessionLocal() as db:
         try:
-            # Step 1: Extract full content
-            if extractor.is_youtube_url(url):
+            # Step 1: Extract full content (skip for PDF — content already extracted)
+            if content is not None:
+                richer_title = title
+            elif extractor.is_youtube_url(url):
                 extracted = await extractor.extract_youtube(url)
+                content = extracted.get("content", "")
+                # Use the richer title from extraction if we got one
+                richer_title = extracted.get("title") or title
             else:
                 extracted = await extractor.extract_article(url)
-
-            content = extracted.get("content", "")
-            # Use the richer title from extraction if we got one
-            richer_title = extracted.get("title") or title
+                content = extracted.get("content", "")
+                richer_title = extracted.get("title") or title
 
             # Step 2: Fetch category names from DB for the dynamic prompt
             categories = await db_service.list_categories(db)

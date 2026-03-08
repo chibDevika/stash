@@ -8,7 +8,12 @@ import { api } from "../api";
  *        and a "Chat about this" inline Q&A input.
  * No raw content shown.
  */
-export default function ItemDetailPanel({ item, categories, onClose, onItemUpdated }) {
+export default function ItemDetailPanel({
+  item,
+  categories,
+  onClose,
+  onItemUpdated,
+}) {
   const [localItem, setLocalItem] = useState(item);
   const [tagInput, setTagInput] = useState("");
   const [tagAdding, setTagAdding] = useState(false);
@@ -17,19 +22,25 @@ export default function ItemDetailPanel({ item, categories, onClose, onItemUpdat
   const [chatAnswer, setChatAnswer] = useState(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [titleSaving, setTitleSaving] = useState(false);
   const inputRef = useRef(null);
+  const titleInputRef = useRef(null);
 
   // Sync when parent passes updated item
-  useEffect(() => { setLocalItem(item); }, [item]);
+  useEffect(() => {
+    setLocalItem(item);
+  }, [item]);
 
-  // Close on Escape key
+  // Close on Escape key (but not while editing the title)
   useEffect(() => {
     function handleKey(e) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !editingTitle) onClose();
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  }, [onClose, editingTitle]);
 
   const date = localItem.created_at
     ? new Date(localItem.created_at).toLocaleDateString("en-US", {
@@ -44,6 +55,50 @@ export default function ItemDetailPanel({ item, categories, onClose, onItemUpdat
     source = new URL(localItem.url).hostname.replace(/^www\./, "");
   } catch {
     source = localItem.url;
+  }
+
+  // ── Title editing ──────────────────────────────────────────────────────────
+
+  function startEditingTitle() {
+    setTitleDraft(localItem.title);
+    setEditingTitle(true);
+    // Focus the input after render
+    setTimeout(() => titleInputRef.current?.focus(), 0);
+  }
+
+  function cancelEditingTitle() {
+    setEditingTitle(false);
+    setTitleDraft("");
+  }
+
+  async function saveTitle() {
+    const trimmed = titleDraft.trim();
+    if (!trimmed || trimmed === localItem.title) {
+      cancelEditingTitle();
+      return;
+    }
+    setTitleSaving(true);
+    try {
+      const updated = await api.updateItemTitle(localItem.id, trimmed);
+      setLocalItem(updated);
+      onItemUpdated(updated);
+      setEditingTitle(false);
+    } catch (e) {
+      console.error("Failed to update title", e);
+    } finally {
+      setTitleSaving(false);
+    }
+  }
+
+  function handleTitleKeyDown(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveTitle();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cancelEditingTitle();
+    }
   }
 
   // ── Tag management ─────────────────────────────────────────────────────────
@@ -124,12 +179,35 @@ export default function ItemDetailPanel({ item, categories, onClose, onItemUpdat
       <aside className="detail-panel">
         {/* Header: title + close */}
         <div className="panel-header">
-          <h2 className="panel-title">
-            <a href={localItem.url} target="_blank" rel="noopener noreferrer">
-              {localItem.title}
-            </a>
-          </h2>
-          <button className="panel-close" onClick={onClose} title="Close">×</button>
+          {editingTitle ? (
+            <div className="panel-title-edit">
+              <input
+                ref={titleInputRef}
+                className="panel-title-input"
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={handleTitleKeyDown}
+                onBlur={saveTitle}
+                disabled={titleSaving}
+              />
+            </div>
+          ) : (
+            <h2 className="panel-title">
+              <a href={localItem.url} target="_blank" rel="noopener noreferrer">
+                {localItem.title}
+              </a>
+              <button
+                className="panel-title-edit-btn"
+                onClick={startEditingTitle}
+                title="Edit title"
+              >
+                ✎
+              </button>
+            </h2>
+          )}
+          <button className="panel-close" onClick={onClose} title="Close">
+            ×
+          </button>
         </div>
 
         <div className="panel-body">
@@ -140,7 +218,9 @@ export default function ItemDetailPanel({ item, categories, onClose, onItemUpdat
                 src={localItem.favicon_url}
                 alt=""
                 style={{ width: 14, height: 14, borderRadius: 2 }}
-                onError={(e) => { e.target.style.display = "none"; }}
+                onError={(e) => {
+                  e.target.style.display = "none";
+                }}
               />
             )}
             <span>{source}</span>
@@ -151,26 +231,28 @@ export default function ItemDetailPanel({ item, categories, onClose, onItemUpdat
           <hr className="panel-divider" />
 
           {/* AI Summary — overview + key points */}
-          {localItem.summary && (() => {
-            const [overview, ...rest] = localItem.summary.split("\n\n");
-            const bullets = rest.join("\n\n")
-              .split("\n")
-              .map(l => l.trim())
-              .filter(l => l.startsWith("•"));
-            return (
-              <div>
-                <div className="panel-section-label">Summary</div>
-                {overview && <p className="panel-summary">{overview}</p>}
-                {bullets.length > 0 && (
-                  <ul className="panel-key-points">
-                    {bullets.map((b, i) => (
-                      <li key={i}>{b.replace(/^•\s*/, "")}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            );
-          })()}
+          {localItem.summary &&
+            (() => {
+              const [overview, ...rest] = localItem.summary.split("\n\n");
+              const bullets = rest
+                .join("\n\n")
+                .split("\n")
+                .map((l) => l.trim())
+                .filter((l) => l.startsWith("•"));
+              return (
+                <div>
+                  <div className="panel-section-label">Summary</div>
+                  {overview && <p className="panel-summary">{overview}</p>}
+                  {bullets.length > 0 && (
+                    <ul className="panel-key-points">
+                      {bullets.map((b, i) => (
+                        <li key={i}>{b.replace(/^•\s*/, "")}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })()}
 
           {/* Category */}
           {categories.length > 0 && (
@@ -183,7 +265,9 @@ export default function ItemDetailPanel({ item, categories, onClose, onItemUpdat
               >
                 <option value="">— Uncategorized —</option>
                 {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -197,7 +281,9 @@ export default function ItemDetailPanel({ item, categories, onClose, onItemUpdat
             {(localItem.tags || []).length > 0 && (
               <div className="panel-tags-row">
                 {(localItem.tags || []).map((tag) => (
-                  <span key={`ai-${tag}`} className="tag">{tag}</span>
+                  <span key={`ai-${tag}`} className="tag">
+                    {tag}
+                  </span>
                 ))}
               </div>
             )}
@@ -205,7 +291,10 @@ export default function ItemDetailPanel({ item, categories, onClose, onItemUpdat
             {/* Manual tags (removable) */}
             <div className="panel-tags-row">
               {(localItem.manual_tags || []).map((tag) => (
-                <span key={`manual-${tag}`} className="tag-removable tag-manual">
+                <span
+                  key={`manual-${tag}`}
+                  className="tag-removable tag-manual"
+                >
                   {tag}
                   <button
                     className="tag-remove"
@@ -263,9 +352,7 @@ export default function ItemDetailPanel({ item, categories, onClose, onItemUpdat
               {chatAnswer && (
                 <div className="item-chat-answer">{chatAnswer}</div>
               )}
-              {chatError && (
-                <p className="item-chat-error">{chatError}</p>
-              )}
+              {chatError && <p className="item-chat-error">{chatError}</p>}
             </div>
           </div>
         </div>
