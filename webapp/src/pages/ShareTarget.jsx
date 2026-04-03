@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import BACKEND_URL, { getApiKey } from "../config";
+import BACKEND_URL from "../config";
+import { supabase } from "../lib/supabase";
 
 export default function ShareTarget() {
   const [searchParams] = useSearchParams();
@@ -15,23 +16,24 @@ export default function ShareTarget() {
       return;
     }
 
-    // API key: prefer URL param (set in iOS Shortcut) then fall back to localStorage
-    const apiKey = searchParams.get("key") || getApiKey() || "";
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const headers = { "Content-Type": "application/json" };
+      if (session) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
 
-    fetch(`${BACKEND_URL}/save`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": apiKey,
-      },
-      body: JSON.stringify({ url, title }),
-    })
-      .then((res) => {
-        if (res.ok) setStatus("saved");
-        else if (res.status === 409) setStatus("duplicate");
-        else setStatus("error");
+      fetch(`${BACKEND_URL}/save`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ url, title }),
       })
-      .catch(() => setStatus("error"));
+        .then((res) => {
+          if (res.ok) setStatus("saved");
+          else if (res.status === 409) setStatus("duplicate");
+          else setStatus("error");
+        })
+        .catch(() => setStatus("error"));
+    });
   }, []);
 
   return (
@@ -96,6 +98,11 @@ const styles = {
     animation: "spin 0.8s linear infinite",
     margin: "0 auto 16px",
   },
-  text: { fontSize: "18px", fontWeight: "600", color: "#1A1A1A", margin: "0 0 8px" },
+  text: {
+    fontSize: "18px",
+    fontWeight: "600",
+    color: "#1A1A1A",
+    margin: "0 0 8px",
+  },
   sub: { fontSize: "14px", color: "#9E968E", margin: 0 },
 };

@@ -1,18 +1,23 @@
 /**
  * API client — all fetch calls to the backend go through here.
- * BACKEND_URL defaults to localhost:8000; override via VITE_BACKEND_URL env var.
+ * Auth token comes from the active Supabase session (Bearer JWT).
  */
 
-import BACKEND_URL, { getApiKey } from "./config";
+import BACKEND_URL from "./config";
+import { supabase } from "./lib/supabase";
 
 const BASE = BACKEND_URL;
 
+async function getAuthHeader() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session ? { Authorization: `Bearer ${session.access_token}` } : {};
+}
+
 async function request(method, path, body) {
-  const headers = { "Content-Type": "application/json" };
-  const apiKey = getApiKey();
-  if (apiKey) {
-    headers["X-API-Key"] = apiKey;
-  }
+  const authHeader = await getAuthHeader();
+  const headers = { "Content-Type": "application/json", ...authHeader };
 
   const opts = { method, headers };
   if (body !== undefined) {
@@ -22,11 +27,10 @@ async function request(method, path, body) {
   const res = await fetch(`${BASE}${path}`, opts);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    // 401 → fire event so App can show the login prompt
     if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent("stash:unauthorized"));
+      // Token expired or invalid — sign out so the login page is shown
+      await supabase.auth.signOut();
     }
-    // Preserve status code on the thrown error so callers can handle 409 etc.
     const error = new Error(
       err.detail?.message || err.detail || `Request failed: ${res.status}`,
     );
@@ -61,30 +65,26 @@ export const api = {
   // ── Save ───────────────────────────────────────────────────────────────────
   saveUrl: (url) => request("POST", "/save", { url }),
 
-  uploadPdf: (file) => {
+  uploadPdf: async (file) => {
+    const authHeader = await getAuthHeader();
     const form = new FormData();
     form.append("file", file);
-    const headers = {};
-    const apiKey = getApiKey();
-    if (apiKey) headers["X-API-Key"] = apiKey;
-    return fetch(`${BASE}/save/pdf`, {
+    const res = await fetch(`${BASE}/save/pdf`, {
       method: "POST",
-      headers,
+      headers: authHeader,
       body: form,
-    }).then(async (res) => {
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        if (res.status === 401)
-          window.dispatchEvent(new CustomEvent("stash:unauthorized"));
-        const error = new Error(
-          err.detail?.message || err.detail || `Request failed: ${res.status}`,
-        );
-        error.status = res.status;
-        error.detail = err.detail;
-        throw error;
-      }
-      return res.json();
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 401) await supabase.auth.signOut();
+      const error = new Error(
+        err.detail?.message || err.detail || `Request failed: ${res.status}`,
+      );
+      error.status = res.status;
+      error.detail = err.detail;
+      throw error;
+    }
+    return res.json();
   },
 
   // ── Categories ─────────────────────────────────────────────────────────────
@@ -105,10 +105,19 @@ export const api = {
   queryItem: (id, question) =>
     request("POST", `/query/item/${id}`, { question }),
 
+  // ── Auth / user info ───────────────────────────────────────────────────────
+  getMe: () => request("GET", "/auth/me"),
+
+  // ── Admin (requires is_admin in Supabase app_metadata) ────────────────────
+  adminListUsers: () => request("GET", "/admin/users"),
+
+  adminCreateUser: (email, password, isAdmin = false) =>
+    request("POST", "/admin/users", { email, password, is_admin: isAdmin }),
+
   // ── Health ─────────────────────────────────────────────────────────────────
   health: () => request("GET", "/health"),
 
-  // ── Demo (no auth required) ─────────────────────────────────────────────
+  // ── Demo (no auth required) ────────────────────────────────────────────────
   getDemoItems: () => request("GET", "/demo/items"),
   searchDemo: (q) => request("GET", `/demo/search?q=${encodeURIComponent(q)}`),
   queryDemo: (question) => request("POST", "/demo/query", { question }),

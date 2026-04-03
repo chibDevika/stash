@@ -8,7 +8,7 @@ Item CRUD routes:
   PATCH  /items/{id}/category      — override category
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
@@ -28,43 +28,53 @@ class UpdateCategoryRequest(BaseModel):
     category_id: str
 
 
+class UpdateTitleRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=500)
+
+
 @router.get("/items")
 async def list_items(
+    request: Request,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     category_id: Optional[str] = Query(None),
     session: AsyncSession = Depends(get_db),
 ):
-    return await db_service.list_items(session, page=page, limit=limit, category_id=category_id)
+    user_id = getattr(request.state, "user_id", None)
+    return await db_service.list_items(
+        session, page=page, limit=limit, category_id=category_id, user_id=user_id
+    )
 
 
 @router.get("/items/{item_id}")
-async def get_item(item_id: str, session: AsyncSession = Depends(get_db)):
-    item = await db_service.get_item(session, item_id)
+async def get_item(item_id: str, request: Request, session: AsyncSession = Depends(get_db)):
+    user_id = getattr(request.state, "user_id", None)
+    item = await db_service.get_item(session, item_id, user_id=user_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     return item
 
 
 @router.delete("/items/{item_id}")
-async def delete_item(item_id: str, session: AsyncSession = Depends(get_db)):
-    deleted = await db_service.delete_item(session, item_id)
+async def delete_item(item_id: str, request: Request, session: AsyncSession = Depends(get_db)):
+    user_id = getattr(request.state, "user_id", None)
+    deleted = await db_service.delete_item(session, item_id, user_id=user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Item not found")
     return {"ok": True}
 
 
-class UpdateTitleRequest(BaseModel):
-    title: str = Field(..., min_length=1, max_length=500)
-
-
 @router.patch("/items/{item_id}/title")
 async def update_title(
     item_id: str,
-    request: UpdateTitleRequest,
+    request_body: UpdateTitleRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ):
-    item = await db_service.update_item_title(session, item_id, request.title.strip())
+    user_id = getattr(request.state, "user_id", None)
+    item = await db_service.update_item_title(
+        session, item_id, request_body.title.strip(), user_id=user_id
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     return item
@@ -73,11 +83,13 @@ async def update_title(
 @router.patch("/items/{item_id}/tags")
 async def update_tags(
     item_id: str,
-    request: UpdateTagsRequest,
+    request_body: UpdateTagsRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ):
+    user_id = getattr(request.state, "user_id", None)
     item = await db_service.update_item_tags(
-        session, item_id, add=request.add, remove=request.remove
+        session, item_id, add=request_body.add, remove=request_body.remove, user_id=user_id
     )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -87,10 +99,14 @@ async def update_tags(
 @router.patch("/items/{item_id}/category")
 async def update_category(
     item_id: str,
-    request: UpdateCategoryRequest,
+    request_body: UpdateCategoryRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ):
-    item = await db_service.update_item_category(session, item_id, request.category_id)
+    user_id = getattr(request.state, "user_id", None)
+    item = await db_service.update_item_category(
+        session, item_id, request_body.category_id, user_id=user_id
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     return item

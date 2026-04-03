@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { supabase } from "./lib/supabase";
 import { api } from "./api";
-import { clearApiKey, getApiKey } from "./config";
 
 import TopBar from "./components/TopBar";
 import InstallBanner from "./components/InstallBanner";
@@ -11,14 +11,13 @@ import ItemDetailPanel from "./components/ItemDetailPanel";
 import EmptyState from "./components/EmptyState";
 import PdfDropZone from "./components/PdfDropZone";
 import Landing from "./pages/Landing";
+import Login from "./pages/Login";
 import Demo from "./pages/Demo";
 
 const PAGE_SIZE = 20;
 
-// Categories change very rarely — cache them in localStorage so pills render
-// instantly on load instead of waiting for an API round-trip.
 const CATS_CACHE_KEY = "stash_categories_v1";
-const CATS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CATS_TTL_MS = 5 * 60 * 1000;
 
 function loadCachedCategories() {
   try {
@@ -47,7 +46,7 @@ function bustCategoriesCache() {
 }
 
 export default function App() {
-  // ── View routing: 'loading' | 'landing' | 'demo' | 'dashboard' ──────────────
+  // ── View routing: 'loading' | 'landing' | 'login' | 'demo' | 'dashboard' ───
   const [view, setView] = useState("loading");
 
   // ── Data state ──────────────────────────────────────────────────────────────
@@ -61,46 +60,43 @@ export default function App() {
   const [categories, setCategories] = useState([]);
   const [activeCategoryId, setActiveCategoryId] = useState(null);
 
-  // Build a quick lookup from category id → name
   const categoryMap = Object.fromEntries(categories.map((c) => [c.id, c.name]));
 
   // ── Search / Q&A state ──────────────────────────────────────────────────────
-  const [searchResult, setSearchResult] = useState(null); // null = not searching
+  const [searchResult, setSearchResult] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
 
   // ── Detail panel ────────────────────────────────────────────────────────────
   const [selectedItem, setSelectedItem] = useState(null);
 
-  // ── Auth check on mount + listen for 401 events ─────────────────────────────
+  // ── Supabase auth state ──────────────────────────────────────────────────────
   useEffect(() => {
-    // /health is unprotected — validate against a protected endpoint instead.
-    // If no key is stored at all, skip the network call and go straight to landing.
-    if (!getApiKey()) {
-      setView("landing");
-      return;
-    }
-    api
-      .getCategories()
-      .then(() => setView("dashboard"))
-      .catch(() => {
-        clearApiKey();
-        setView("landing");
-      });
+    // Check for an existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setView(session ? "dashboard" : "landing");
+    });
 
-    const handleUnauthorized = () => {
-      clearApiKey();
-      setView("landing");
-    };
-    window.addEventListener("stash:unauthorized", handleUnauthorized);
-    return () =>
-      window.removeEventListener("stash:unauthorized", handleUnauthorized);
+    // Listen for sign-in / sign-out events
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        bustCategoriesCache();
+        setView("dashboard");
+      } else {
+        bustCategoriesCache();
+        setItems([]);
+        setCategories([]);
+        setView("landing");
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // ── Load categories ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (view !== "dashboard") return;
-    // Show cached value immediately so pills appear without a spinner,
-    // then always refetch in background to stay fresh.
     const cached = loadCachedCategories();
     if (cached) setCategories(cached);
     api
@@ -109,7 +105,7 @@ export default function App() {
         setCategories(cats);
         persistCategories(cats);
       })
-      .catch(() => {}); // non-fatal
+      .catch(() => {});
   }, [view]);
 
   // ── Load items ──────────────────────────────────────────────────────────────
@@ -198,9 +194,13 @@ export default function App() {
     return (
       <Landing
         onEnterDemo={() => setView("demo")}
-        onAuthenticated={() => setView("dashboard")}
+        onSignIn={() => setView("login")}
       />
     );
+  }
+
+  if (view === "login") {
+    return <Login onEnterDemo={() => setView("demo")} />;
   }
 
   if (view === "demo") return <Demo />;
@@ -253,16 +253,13 @@ export default function App() {
           </div>
         )}
 
-        {/* Error state */}
         {searchResult?.type === "error" && (
           <p className="page-error">{searchResult.error}</p>
         )}
 
-        {/* Loading */}
         {loading && <div className="page-loading">Loading…</div>}
         {error && <p className="page-error">{error}</p>}
 
-        {/* Results count for search */}
         {isSearching && searchResult?.type === "search" && (
           <p className="results-count">
             {displayItems.length} result{displayItems.length !== 1 ? "s" : ""}
@@ -270,7 +267,6 @@ export default function App() {
           </p>
         )}
 
-        {/* Item grid */}
         {!loading && !error && displayItems.length > 0 && (
           <div className="item-grid">
             {displayItems.map((item) => (
@@ -285,10 +281,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Empty state */}
         {showEmpty && <EmptyState searching={isSearching} />}
 
-        {/* Pagination (only for browse mode) */}
         {!isSearching && !loading && totalPages > 1 && (
           <div className="pagination">
             <button
@@ -312,7 +306,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Slide-in detail panel */}
       {selectedItem && (
         <ItemDetailPanel
           item={selectedItem}

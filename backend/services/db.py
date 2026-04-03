@@ -1,21 +1,32 @@
 """
 Database operations: saving items, searching (keyword + vector), categories, and retrieval.
-All functions receive an AsyncSession and return plain dicts for easy JSON serialization.
+All functions accept an optional user_id (Supabase UUID string).
+  - user_id=None  → no filter (dev mode with auth disabled — shows all data)
+  - user_id=<str> → filter to that user's rows only
 """
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Default categories seeded for every new user on first login
+_DEFAULT_CATEGORIES = [
+    "AI & Tech",
+    "Product & Design",
+    "Business & Finance",
+    "World Affairs",
+    "Science & Health",
+    "Personal",
+    "Reference",
+]
+
 
 def _embedding_to_str(embedding) -> str | None:
-    """Convert a Python list to the '[x,y,z]' string pgvector expects via raw SQL."""
     if not embedding:
         return None
     return "[" + ",".join(str(v) for v in embedding) + "]"
 
 
 def _row_to_dict(row) -> dict:
-    """Convert a DB row mapping to a JSON-safe dict."""
     if row is None:
         return {}
     d = dict(row)
@@ -23,59 +34,65 @@ def _row_to_dict(row) -> dict:
         d["id"] = str(d["id"])
     if "category_id" in d and d["category_id"] is not None:
         d["category_id"] = str(d["category_id"])
-    # Exclude the raw embedding vector from API responses
+    if "user_id" in d and d["user_id"] is not None:
+        d["user_id"] = str(d["user_id"])
     d.pop("embedding", None)
-    # Convert datetime to ISO string
     if "created_at" in d and d["created_at"] is not None:
         d["created_at"] = d["created_at"].isoformat()
-    # Internal search ranking scores — strip them
     d.pop("rank", None)
     d.pop("distance", None)
     return d
 
 
-# ── Items ────────────────────────────────────────────────────────────────────
+# ── Items ─────────────────────────────────────────────────────────────────────
 
-async def get_item_by_url(db: AsyncSession, url: str) -> dict | None:
-    """Check if a URL already exists in the DB. Returns the item dict or None."""
-    result = await db.execute(
-        text("SELECT * FROM items WHERE url = :url"),
-        {"url": url},
-    )
+async def get_item_by_url(db: AsyncSession, url: str, user_id: str | None = None) -> dict | None:
+    """Check if a URL already exists for this user. Returns item or None."""
+    if user_id is not None:
+        result = await db.execute(
+            text("SELECT * FROM items WHERE url = :url AND user_id = CAST(:uid AS uuid)"),
+            {"url": url, "uid": user_id},
+        )
+    else:
+        result = await db.execute(
+            text("SELECT * FROM items WHERE url = :url AND user_id IS NULL"),
+            {"url": url},
+        )
     row = result.mappings().fetchone()
     return _row_to_dict(row) if row else None
 
 
 async def save_item(db: AsyncSession, data: dict) -> dict:
-    """
-    Insert a new item with status='pending' (metadata only, no AI fields yet).
-    Returns the newly created item dict.
-    """
+    """Insert a new item with status='pending'. data must include user_id (may be None)."""
     await db.execute(
         text("""
-            INSERT INTO items (url, title, favicon_url, status)
-            VALUES (:url, :title, :favicon_url, 'pending')
+            INSERT INTO items (url, title, favicon_url, status, user_id)
+            VALUES (:url, :title, :favicon_url, 'pending', CAST(:user_id AS uuid))
         """),
         {
             "url": data["url"],
             "title": data.get("title", ""),
             "favicon_url": data.get("favicon_url", ""),
+            "user_id": data.get("user_id"),
         },
     )
     await db.commit()
-    result = await db.execute(
-        text("SELECT * FROM items WHERE url = :url"),
-        {"url": data["url"]},
-    )
+    if data.get("user_id") is not None:
+        result = await db.execute(
+            text("SELECT * FROM items WHERE url = :url AND user_id = CAST(:uid AS uuid)"),
+            {"url": data["url"], "uid": data["user_id"]},
+        )
+    else:
+        result = await db.execute(
+            text("SELECT * FROM items WHERE url = :url AND user_id IS NULL"),
+            {"url": data["url"]},
+        )
     row = result.mappings().fetchone()
     return _row_to_dict(row)
 
 
 async def update_item_ai(db: AsyncSession, item_id: str, data: dict) -> None:
-    """
-    Update an item after background AI processing is complete.
-    Sets summary, tags, category_id, embedding, and status='processed'.
-    """
+    """Update an item after background AI processing. No user_id filter — item_id is enough."""
     embedding = _embedding_to_str(data.get("embedding"))
     await db.execute(
         text("""
@@ -87,7 +104,7 @@ async def update_item_ai(db: AsyncSession, item_id: str, data: dict) -> None:
                 category_id = CAST(:category_id AS uuid),
                 embedding   = :embedding,
                 status      = 'processed'
-            WHERE id = :id
+            WHERE id = CAST(:id AS uuid)
         """),
         {
             "id": item_id,
@@ -103,9 +120,8 @@ async def update_item_ai(db: AsyncSession, item_id: str, data: dict) -> None:
 
 
 async def mark_item_failed(db: AsyncSession, item_id: str) -> None:
-    """Mark an item as failed when background AI processing encounters an unrecoverable error."""
     await db.execute(
-        text("UPDATE items SET status = 'failed' WHERE id = :id"),
+        text("UPDATE items SET status = 'failed' WHERE id = CAST(:id AS uuid)"),
         {"id": item_id},
     )
     await db.commit()
@@ -116,35 +132,29 @@ async def list_items(
     page: int = 1,
     limit: int = 20,
     category_id: str | None = None,
+    user_id: str | None = None,
 ) -> dict:
-    """Paginated list of all saved items, newest first. Optionally filter by category."""
+    """Paginated list of saved items, newest first. Filtered by user and optionally category."""
     offset = (page - 1) * limit
+    conditions = []
+    params: dict = {"limit": limit, "offset": offset}
 
+    if user_id is not None:
+        conditions.append("user_id = CAST(:user_id AS uuid)")
+        params["user_id"] = user_id
     if category_id:
-        count_result = await db.execute(
-            text("SELECT COUNT(*) FROM items WHERE category_id = CAST(:cid AS uuid)"),
-            {"cid": category_id},
-        )
-        total = count_result.scalar()
-        result = await db.execute(
-            text("""
-                SELECT * FROM items
-                WHERE category_id = CAST(:cid AS uuid)
-                ORDER BY created_at DESC
-                LIMIT :limit OFFSET :offset
-            """),
-            {"cid": category_id, "limit": limit, "offset": offset},
-        )
-    else:
-        count_result = await db.execute(text("SELECT COUNT(*) FROM items"))
-        total = count_result.scalar()
-        result = await db.execute(
-            text("SELECT * FROM items ORDER BY created_at DESC LIMIT :limit OFFSET :offset"),
-            {"limit": limit, "offset": offset},
-        )
+        conditions.append("category_id = CAST(:cid AS uuid)")
+        params["cid"] = category_id
 
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    count_result = await db.execute(text(f"SELECT COUNT(*) FROM items {where}"), params)
+    total = count_result.scalar()
+    result = await db.execute(
+        text(f"SELECT * FROM items {where} ORDER BY created_at DESC LIMIT :limit OFFSET :offset"),
+        params,
+    )
     rows = result.mappings().fetchall()
-    # Strip heavy content field from list view
     items = []
     for r in rows:
         d = _row_to_dict(r)
@@ -153,65 +163,76 @@ async def list_items(
     return {"items": items, "total": total}
 
 
-async def get_item(db: AsyncSession, item_id: str) -> dict | None:
-    """Fetch a single item by ID (includes content for per-item chat)."""
+async def get_item(db: AsyncSession, item_id: str, user_id: str | None = None) -> dict | None:
+    """Fetch a single item. When user_id is set, enforces ownership."""
+    params: dict = {"id": item_id}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
+
     result = await db.execute(
-        text("SELECT * FROM items WHERE id = :id"),
-        {"id": item_id},
+        text(f"SELECT * FROM items WHERE id = CAST(:id AS uuid) {user_cond}"),
+        params,
     )
     row = result.mappings().fetchone()
-    if not row:
-        return None
-    # _row_to_dict does NOT strip content — content is only removed in list/search helpers
-    return _row_to_dict(row)
+    return _row_to_dict(row) if row else None
 
 
-async def delete_item(db: AsyncSession, item_id: str) -> bool:
-    """Delete an item by ID. Returns True if a row was actually deleted."""
+async def delete_item(db: AsyncSession, item_id: str, user_id: str | None = None) -> bool:
+    params: dict = {"id": item_id}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
+
     result = await db.execute(
-        text("DELETE FROM items WHERE id = :id"),
-        {"id": item_id},
+        text(f"DELETE FROM items WHERE id = CAST(:id AS uuid) {user_cond}"),
+        params,
     )
     await db.commit()
     return result.rowcount > 0
 
 
 async def update_item_tags(
-    db: AsyncSession, item_id: str, add: list[str], remove: list[str]
+    db: AsyncSession,
+    item_id: str,
+    add: list[str],
+    remove: list[str],
+    user_id: str | None = None,
 ) -> dict | None:
-    """
-    Add or remove tags from manual_tags array.
-    Uses Postgres array operators for atomic updates.
-    """
+    params_base: dict = {"id": item_id}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params_base["user_id"] = user_id
+
     if add:
-        # array_cat appends, then array_remove removes duplicates approach:
-        # Use array || to append, then deduplicate by casting through unnest
         await db.execute(
-            text("""
+            text(f"""
                 UPDATE items
                 SET manual_tags = ARRAY(
-                    SELECT DISTINCT unnest(COALESCE(manual_tags, '{}') || CAST(:add AS text[]))
+                    SELECT DISTINCT unnest(COALESCE(manual_tags, '{{}}') || CAST(:add AS text[]))
                 )
-                WHERE id = :id
+                WHERE id = CAST(:id AS uuid) {user_cond}
             """),
-            {"id": item_id, "add": add},
+            {**params_base, "add": add},
         )
-
     if remove:
         for tag in remove:
             await db.execute(
-                text("""
+                text(f"""
                     UPDATE items
-                    SET manual_tags = array_remove(COALESCE(manual_tags, '{}'), :tag)
-                    WHERE id = :id
+                    SET manual_tags = array_remove(COALESCE(manual_tags, '{{}}'), :tag)
+                    WHERE id = CAST(:id AS uuid) {user_cond}
                 """),
-                {"id": item_id, "tag": tag},
+                {**params_base, "tag": tag},
             )
 
     await db.commit()
     result = await db.execute(
-        text("SELECT * FROM items WHERE id = :id"),
-        {"id": item_id},
+        text(f"SELECT * FROM items WHERE id = CAST(:id AS uuid) {user_cond}"),
+        params_base,
     )
     row = result.mappings().fetchone()
     if not row:
@@ -221,16 +242,23 @@ async def update_item_tags(
     return d
 
 
-async def update_item_title(db: AsyncSession, item_id: str, title: str) -> dict | None:
-    """Update the display title for an item."""
+async def update_item_title(
+    db: AsyncSession, item_id: str, title: str, user_id: str | None = None
+) -> dict | None:
+    params: dict = {"title": title, "id": item_id}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
+
     await db.execute(
-        text("UPDATE items SET title = :title WHERE id = :id"),
-        {"title": title, "id": item_id},
+        text(f"UPDATE items SET title = :title WHERE id = CAST(:id AS uuid) {user_cond}"),
+        params,
     )
     await db.commit()
     result = await db.execute(
-        text("SELECT * FROM items WHERE id = :id"),
-        {"id": item_id},
+        text(f"SELECT * FROM items WHERE id = CAST(:id AS uuid) {user_cond}"),
+        params,
     )
     row = result.mappings().fetchone()
     if not row:
@@ -241,17 +269,22 @@ async def update_item_title(db: AsyncSession, item_id: str, title: str) -> dict 
 
 
 async def update_item_category(
-    db: AsyncSession, item_id: str, category_id: str
+    db: AsyncSession, item_id: str, category_id: str, user_id: str | None = None
 ) -> dict | None:
-    """Override the category for an item."""
+    params: dict = {"cid": category_id, "id": item_id}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
+
     await db.execute(
-        text("UPDATE items SET category_id = CAST(:cid AS uuid) WHERE id = :id"),
-        {"cid": category_id, "id": item_id},
+        text(f"UPDATE items SET category_id = CAST(:cid AS uuid) WHERE id = CAST(:id AS uuid) {user_cond}"),
+        params,
     )
     await db.commit()
     result = await db.execute(
-        text("SELECT * FROM items WHERE id = :id"),
-        {"id": item_id},
+        text(f"SELECT * FROM items WHERE id = CAST(:id AS uuid) {user_cond}"),
+        params,
     )
     row = result.mappings().fetchone()
     if not row:
@@ -263,48 +296,92 @@ async def update_item_category(
 
 # ── Categories ────────────────────────────────────────────────────────────────
 
-async def list_categories(db: AsyncSession) -> list[dict]:
-    """Return all categories — defaults first, then user-created, alpha within each group."""
+async def seed_default_categories(db: AsyncSession, user_id: str) -> None:
+    """Create the default category set for a newly created user."""
+    for name in _DEFAULT_CATEGORIES:
+        await db.execute(
+            text("""
+                INSERT INTO categories (name, is_default, user_id)
+                VALUES (:name, TRUE, CAST(:user_id AS uuid))
+                ON CONFLICT DO NOTHING
+            """),
+            {"name": name, "user_id": user_id},
+        )
+    await db.commit()
+
+
+async def list_categories(db: AsyncSession, user_id: str | None = None) -> list[dict]:
+    """All categories for this user — defaults first, then user-created, alpha within each."""
+    params: dict = {}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "WHERE user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
+
     result = await db.execute(
-        text("""
+        text(f"""
             SELECT id, name, is_default, created_at
             FROM categories
+            {user_cond}
             ORDER BY is_default DESC, name ASC
-        """)
+        """),
+        params,
     )
     rows = result.mappings().fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-async def create_category(db: AsyncSession, name: str) -> dict:
-    """Create a user-defined category."""
+async def create_category(
+    db: AsyncSession, name: str, user_id: str | None = None
+) -> dict:
     await db.execute(
-        text("INSERT INTO categories (name, is_default) VALUES (:name, FALSE)"),
-        {"name": name},
+        text("""
+            INSERT INTO categories (name, is_default, user_id)
+            VALUES (:name, FALSE, CAST(:user_id AS uuid))
+        """),
+        {"name": name, "user_id": user_id},
     )
     await db.commit()
+    params: dict = {"name": name}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
     result = await db.execute(
-        text("SELECT * FROM categories WHERE name = :name"),
-        {"name": name},
+        text(f"SELECT * FROM categories WHERE name = :name {user_cond}"),
+        params,
     )
     row = result.mappings().fetchone()
     return _row_to_dict(row)
 
 
-async def get_category(db: AsyncSession, category_id: str) -> dict | None:
+async def get_category(
+    db: AsyncSession, category_id: str, user_id: str | None = None
+) -> dict | None:
+    params: dict = {"id": category_id}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
     result = await db.execute(
-        text("SELECT * FROM categories WHERE id = :id"),
-        {"id": category_id},
+        text(f"SELECT * FROM categories WHERE id = CAST(:id AS uuid) {user_cond}"),
+        params,
     )
     row = result.mappings().fetchone()
     return _row_to_dict(row) if row else None
 
 
-async def delete_category(db: AsyncSession, category_id: str) -> bool:
-    """Delete a user-created category. Returns False if not found or is_default=True."""
+async def delete_category(
+    db: AsyncSession, category_id: str, user_id: str | None = None
+) -> bool:
+    params: dict = {"id": category_id}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
     result = await db.execute(
-        text("DELETE FROM categories WHERE id = :id AND is_default = FALSE"),
-        {"id": category_id},
+        text(f"DELETE FROM categories WHERE id = CAST(:id AS uuid) AND is_default = FALSE {user_cond}"),
+        params,
     )
     await db.commit()
     return result.rowcount > 0
@@ -312,26 +389,34 @@ async def delete_category(db: AsyncSession, category_id: str) -> bool:
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
-async def keyword_search(db: AsyncSession, query: str, limit: int = 10) -> list[dict]:
-    """Full-text search using Postgres tsvector on title + content + manual_tags."""
+async def keyword_search(
+    db: AsyncSession, query: str, limit: int = 10, user_id: str | None = None
+) -> list[dict]:
+    params: dict = {"query": query, "limit": limit}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
+
     result = await db.execute(
-        text("""
+        text(f"""
             SELECT *, ts_rank(
                 to_tsvector('english',
                     title || ' ' || COALESCE(content, '') || ' ' ||
-                    array_to_string(COALESCE(manual_tags, '{}'), ' ')
+                    array_to_string(COALESCE(manual_tags, '{{}}'), ' ')
                 ),
                 plainto_tsquery('english', :query)
             ) AS rank
             FROM items
             WHERE to_tsvector('english',
                 title || ' ' || COALESCE(content, '') || ' ' ||
-                array_to_string(COALESCE(manual_tags, '{}'), ' ')
+                array_to_string(COALESCE(manual_tags, '{{}}'), ' ')
             ) @@ plainto_tsquery('english', :query)
+            {user_cond}
             ORDER BY rank DESC
             LIMIT :limit
         """),
-        {"query": query, "limit": limit},
+        params,
     )
     rows = result.mappings().fetchall()
     items = []
@@ -343,19 +428,28 @@ async def keyword_search(db: AsyncSession, query: str, limit: int = 10) -> list[
 
 
 async def vector_search(
-    db: AsyncSession, embedding: list[float], limit: int = 10
+    db: AsyncSession,
+    embedding: list[float],
+    limit: int = 10,
+    user_id: str | None = None,
 ) -> list[dict]:
-    """Semantic search using pgvector cosine similarity (<=> operator)."""
     embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
+    params: dict = {"embedding": embedding_str, "limit": limit}
+    user_cond = ""
+    if user_id is not None:
+        user_cond = "AND user_id = CAST(:user_id AS uuid)"
+        params["user_id"] = user_id
+
     result = await db.execute(
-        text("""
+        text(f"""
             SELECT *, (embedding <=> CAST(:embedding AS vector)) AS distance
             FROM items
             WHERE embedding IS NOT NULL
+            {user_cond}
             ORDER BY embedding <=> CAST(:embedding AS vector)
             LIMIT :limit
         """),
-        {"embedding": embedding_str, "limit": limit},
+        params,
     )
     rows = result.mappings().fetchall()
     items = []

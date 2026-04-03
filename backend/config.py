@@ -26,9 +26,15 @@ ALLOWED_ORIGINS: list[str] = os.environ.get(
 # Environment
 ENVIRONMENT: str = os.environ.get("ENVIRONMENT", "development")
 
-# Auth — secret key for owner access.
-# If empty/unset, auth is disabled (convenient for local dev).
-# Set a long random string in production: python -c "import secrets; print(secrets.token_hex(32))"
+# Auth — Supabase project credentials.
+# JWT Secret: Settings > API > JWT Settings in your Supabase dashboard.
+# If SUPABASE_JWT_SECRET is empty, auth is disabled (local dev with no login).
+SUPABASE_URL: str = os.environ.get("SUPABASE_URL", "")
+SUPABASE_JWT_SECRET: str = os.environ.get("SUPABASE_JWT_SECRET", "")
+# Service Role Key (secret — never expose to frontend): used for admin user management.
+SUPABASE_SERVICE_ROLE_KEY: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+
+# Legacy single-key auth (kept so existing .env files don't break on upgrade)
 SECRET_KEY: str = os.environ.get("SECRET_KEY", "")
 
 # Demo mode — always enabled; separate read-only data, no auth required

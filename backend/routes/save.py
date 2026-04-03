@@ -12,7 +12,7 @@ POST /save — async save pipeline.
    - Update DB with status='processed'
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Request
 from pydantic import BaseModel, Field
 from urllib.parse import urlparse
 from hashlib import sha256
@@ -44,11 +44,12 @@ def _validate_url(url: str) -> None:
 
 @router.post("/save")
 async def save_url(
-    request: SaveRequest,
+    save_request: SaveRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db),
 ):
-    url = request.url.strip()
+    url = save_request.url.strip()
     if not url:
         raise HTTPException(status_code=400, detail="URL cannot be empty")
 
@@ -58,8 +59,10 @@ async def save_url(
     if url.startswith("chrome://") or url.startswith("chrome-extension://"):
         raise HTTPException(status_code=422, detail="Cannot save browser pages.")
 
+    user_id = getattr(http_request.state, "user_id", None)
+
     # Duplicate check — return 409 so extension can show "Already in your Stash"
-    existing = await db_service.get_item_by_url(session, url)
+    existing = await db_service.get_item_by_url(session, url, user_id=user_id)
     if existing:
         raise HTTPException(
             status_code=409,
@@ -75,7 +78,7 @@ async def save_url(
 
     # User-provided title from extension takes precedence over auto-extracted,
     # but clean YouTube artifacts ((605), - YouTube) regardless of source.
-    raw_title = request.title.strip() if request.title and request.title.strip() else extracted_title
+    raw_title = save_request.title.strip() if save_request.title and save_request.title.strip() else extracted_title
     title = extractor.clean_title(raw_title)
 
     # Persist immediately with status='pending'
@@ -83,16 +86,18 @@ async def save_url(
         "url": url,
         "title": title,
         "favicon_url": favicon_url,
+        "user_id": user_id,
     })
 
     # Queue full AI processing in the background
-    background_tasks.add_task(process_item_ai, item["id"], url, title)
+    background_tasks.add_task(process_item_ai, item["id"], url, title, user_id=user_id)
 
     return item
 
 
 @router.post("/save/pdf")
 async def save_pdf(
+    http_request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_db),
@@ -121,8 +126,10 @@ async def save_pdf(
     # Stable unique URL derived from file content — no migration needed
     pdf_url = f"pdf://sha256:{sha256(pdf_bytes).hexdigest()}"
 
+    user_id = getattr(http_request.state, "user_id", None)
+
     # Duplicate check
-    existing = await db_service.get_item_by_url(session, pdf_url)
+    existing = await db_service.get_item_by_url(session, pdf_url, user_id=user_id)
     if existing:
         raise HTTPException(
             status_code=409,
@@ -134,18 +141,19 @@ async def save_pdf(
         "url": pdf_url,
         "title": pdf_title,
         "favicon_url": None,
+        "user_id": user_id,
     })
 
     # Queue AI processing — pass extracted text so background task skips re-fetching
     background_tasks.add_task(
-        process_item_ai, item["id"], pdf_url, pdf_title, content=extracted_text
+        process_item_ai, item["id"], pdf_url, pdf_title, content=extracted_text, user_id=user_id
     )
 
     return item
 
 
 async def process_item_ai(
-    item_id: str, url: str, title: str, content: str | None = None
+    item_id: str, url: str, title: str, content: str | None = None, user_id: str | None = None
 ) -> None:
     """
     Background task: extract content, summarize, embed, update DB.
@@ -168,8 +176,8 @@ async def process_item_ai(
                 content = extracted.get("content", "")
                 richer_title = extracted.get("title") or title
 
-            # Step 2: Fetch category names from DB for the dynamic prompt
-            categories = await db_service.list_categories(db)
+            # Step 2: Fetch this user's categories for the dynamic prompt
+            categories = await db_service.list_categories(db, user_id=user_id)
             category_names = [c["name"] for c in categories]
 
             # Step 3: Summarize + tag with Gemini

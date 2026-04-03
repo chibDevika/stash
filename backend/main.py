@@ -14,16 +14,16 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from config import ALLOWED_ORIGINS, SECRET_KEY, ENVIRONMENT
-from middleware.auth import verify_api_key
-from routes import save, items, search, query, categories, health, demo
+from config import ALLOWED_ORIGINS, SUPABASE_JWT_SECRET, ENVIRONMENT
+from middleware.auth import verify_token
+from routes import save, items, search, query, categories, health, demo, auth
 
 # ── Startup guard ─────────────────────────────────────────────────────────────
-# Fail fast if someone deploys to production without setting a SECRET_KEY.
-if ENVIRONMENT == "production" and not SECRET_KEY:
+# Fail fast if someone deploys to production without Supabase configured.
+if ENVIRONMENT == "production" and not SUPABASE_JWT_SECRET:
     raise RuntimeError(
-        "SECRET_KEY must be set in production — auth is currently disabled.\n"
-        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        "SUPABASE_JWT_SECRET must be set in production — auth is currently disabled.\n"
+        "Get it from: Supabase dashboard → Settings → API → JWT Settings"
     )
 
 # ── Rate limiter (shared instance) ────────────────────────────────────────────
@@ -66,10 +66,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.middleware("http")(verify_api_key)
+app.middleware("http")(verify_token)
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(save.router)
 app.include_router(items.router)
 app.include_router(search.router)
