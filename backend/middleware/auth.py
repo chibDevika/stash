@@ -46,8 +46,14 @@ async def verify_token(request: Request, call_next):
         )
     except pyjwt.ExpiredSignatureError:
         return JSONResponse(status_code=401, content={"detail": "Token expired"})
-    except pyjwt.InvalidTokenError:
-        return JSONResponse(status_code=401, content={"detail": "Invalid token"})
+    except pyjwt.InvalidSignatureError:
+        return JSONResponse(status_code=401, content={"detail": "Invalid signature — wrong JWT secret"})
+    except pyjwt.InvalidAudienceError:
+        return JSONResponse(status_code=401, content={"detail": "Invalid audience claim"})
+    except pyjwt.DecodeError as e:
+        return JSONResponse(status_code=401, content={"detail": f"Decode error: {e}"})
+    except pyjwt.InvalidTokenError as e:
+        return JSONResponse(status_code=401, content={"detail": f"Invalid token: {e}"})
 
     request.state.user_id = payload["sub"]
     request.state.user = {
