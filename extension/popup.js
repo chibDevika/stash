@@ -41,38 +41,40 @@ document.getElementById("open-dashboard-dup").addEventListener("click", (e) => {
   openDashboard();
 });
 
-// Read the Supabase session token — first from cache, then by injecting into
-// any open Stash tab, so the popup works even if the content script hasn't run.
-async function getSupabaseToken(backendUrl) {
-  // 1. Try the cached token from the content script
-  const { supabaseToken } = await chrome.storage.local.get(["supabaseToken"]);
-  if (supabaseToken) return supabaseToken;
-
-  // 2. Find an open Stash tab and read localStorage directly
+// Read the Supabase session token from any open Stash tab (always fresh),
+// falling back to the cache only if no Stash tab is open.
+async function getSupabaseToken() {
   const { frontendUrl } = await chrome.storage.sync.get(["frontendUrl"]);
   const base = (frontendUrl || DEFAULT_FRONTEND_URL).replace(/\/$/, "");
+
+  // 1. Try to read live from an open Stash tab — always fresh
   const tabs = await chrome.tabs.query({ url: base + "/*" });
-  if (!tabs.length) return null;
+  if (tabs.length) {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      func: () => {
+        const key = Object.keys(localStorage).find(
+          (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
+        );
+        if (!key) return null;
+        try {
+          const session = JSON.parse(localStorage.getItem(key));
+          return session?.access_token || null;
+        } catch {
+          return null;
+        }
+      },
+    });
+    const token = results?.[0]?.result || null;
+    if (token) {
+      chrome.storage.local.set({ supabaseToken: token });
+      return token;
+    }
+  }
 
-  const results = await chrome.scripting.executeScript({
-    target: { tabId: tabs[0].id },
-    func: () => {
-      const key = Object.keys(localStorage).find(
-        (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
-      );
-      if (!key) return null;
-      try {
-        const session = JSON.parse(localStorage.getItem(key));
-        return session?.access_token || null;
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  const token = results?.[0]?.result || null;
-  if (token) chrome.storage.local.set({ supabaseToken: token });
-  return token;
+  // 2. No Stash tab open — fall back to cache
+  const { supabaseToken } = await chrome.storage.local.get(["supabaseToken"]);
+  return supabaseToken || null;
 }
 
 // Save button + retry
@@ -101,7 +103,7 @@ async function saveCurrentPage() {
   const { backendUrl } = await chrome.storage.sync.get(["backendUrl"]);
   const apiBase = backendUrl || DEFAULT_BACKEND_URL;
 
-  const token = await getSupabaseToken(backendUrl);
+  const token = await getSupabaseToken();
   if (!token) {
     showError("Not signed in. Open the Stash dashboard and sign in first.");
     return;
@@ -127,6 +129,7 @@ async function saveCurrentPage() {
     }
 
     if (response.status === 401) {
+      chrome.storage.local.remove("supabaseToken");
       showError("Session expired. Open the Stash dashboard and sign in again.");
       return;
     }
