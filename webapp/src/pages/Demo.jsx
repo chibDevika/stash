@@ -5,7 +5,8 @@ import DemoBanner from "../components/DemoBanner";
 import TopBar from "../components/TopBar";
 
 // ── Detect natural language questions vs keyword searches ─────────────────────
-const QUESTION_PREFIX = /^(what|how|why|where|when|who|find|show|tell|explain|is|are|does|did|can|could|should|would)\b/i;
+const QUESTION_PREFIX =
+  /^(what|how|why|where|when|who|find|show|tell|explain|is|are|does|did|can|could|should|would)\b/i;
 function isQuestion(q) {
   const t = q.trim();
   return t.endsWith("?") || QUESTION_PREFIX.test(t);
@@ -15,7 +16,10 @@ function isQuestion(q) {
 function DemoCard({ item, onClick }) {
   const source = item.source || new URL(item.url).hostname.replace("www.", "");
   const date = item.saved_date
-    ? new Date(item.saved_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    ? new Date(item.saved_date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
     : "";
   const summaryLine = item.summary ? item.summary.split("\n")[0] : "";
 
@@ -27,7 +31,9 @@ function DemoCard({ item, onClick }) {
             className="item-favicon"
             src={item.favicon_url}
             alt=""
-            onError={(e) => { e.target.style.display = "none"; }}
+            onError={(e) => {
+              e.target.style.display = "none";
+            }}
           />
         )}
         <span className="item-source">{source}</span>
@@ -43,7 +49,9 @@ function DemoCard({ item, onClick }) {
       {item.tags?.length > 0 && (
         <div className="item-tags-row">
           {item.tags.slice(0, 4).map((tag) => (
-            <span key={tag} className="tag">{tag}</span>
+            <span key={tag} className="tag">
+              {tag}
+            </span>
           ))}
         </div>
       )}
@@ -60,11 +68,18 @@ function DemoDetailPanel({ item, onClose }) {
 
   const source = item.source || new URL(item.url).hostname.replace("www.", "");
   const date = item.saved_date
-    ? new Date(item.saved_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    ? new Date(item.saved_date).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
     : "";
 
   const [overview, ...rest] = (item.summary || "").split("\n\n");
-  const bullets = rest.join("\n\n").split("\n").filter((l) => l.trim().startsWith("•"));
+  const bullets = rest
+    .join("\n\n")
+    .split("\n")
+    .filter((l) => l.trim().startsWith("•"));
 
   async function handleChat(e) {
     e.preventDefault();
@@ -88,70 +103,81 @@ function DemoDetailPanel({ item, onClose }) {
       <aside className="detail-panel">
         <div className="panel-header">
           <h2 className="panel-title">
-            <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "inherit", textDecoration: "none" }}
+            >
               {item.title}
             </a>
           </h2>
-          <button className="panel-close" onClick={onClose} title="Close">×</button>
+          <button className="panel-close" onClick={onClose} title="Close">
+            ×
+          </button>
         </div>
 
         <div className="panel-body">
-        <div className="panel-meta">
-          <span className="panel-source">{source}</span>
-          {date && <span className="panel-date">{date}</span>}
-          {item.category && <span className="panel-category">{item.category}</span>}
-        </div>
-
-        {/* Summary */}
-        {overview && (
-          <div>
-            <div className="panel-section-label">Summary</div>
-            <p className="panel-summary">{overview}</p>
-            {bullets.length > 0 && (
-              <ul className="panel-key-points">
-                {bullets.map((b, i) => (
-                  <li key={i}>{b.replace(/^•\s*/, "")}</li>
-                ))}
-              </ul>
+          <div className="panel-meta">
+            <span className="panel-source">{source}</span>
+            {date && <span className="panel-date">{date}</span>}
+            {item.category && (
+              <span className="panel-category">{item.category}</span>
             )}
           </div>
-        )}
 
-        {/* Tags */}
-        {item.tags?.length > 0 && (
-          <div className="panel-tags-section">
-            <div className="panel-section-label">Tags</div>
-            <div className="panel-tags-row">
-              {item.tags.map((t) => (
-                <span key={t} className="tag">{t}</span>
-              ))}
+          {/* Summary */}
+          {overview && (
+            <div>
+              <div className="panel-section-label">Summary</div>
+              <p className="panel-summary">{overview}</p>
+              {bullets.length > 0 && (
+                <ul className="panel-key-points">
+                  {bullets.map((b, i) => (
+                    <li key={i}>{b.replace(/^•\s*/, "")}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* Tags */}
+          {item.tags?.length > 0 && (
+            <div className="panel-tags-section">
+              <div className="panel-section-label">Tags</div>
+              <div className="panel-tags-row">
+                {item.tags.map((t) => (
+                  <span key={t} className="tag">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Demo chat (uses /demo/query — all demo items as context) */}
+          <div>
+            <div className="panel-section-label">Chat about this</div>
+            <div className="item-chat">
+              <form className="item-chat-input-row" onSubmit={handleChat}>
+                <input
+                  className="item-chat-input"
+                  placeholder="Ask something about this…"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="item-chat-btn"
+                  disabled={chatLoading || !question.trim()}
+                >
+                  {chatLoading ? "…" : "Ask"}
+                </button>
+              </form>
+              {chatError && <p className="item-chat-error">{chatError}</p>}
+              {answer && <div className="item-chat-answer">{answer}</div>}
             </div>
           </div>
-        )}
-
-        {/* Demo chat (uses /demo/query — all demo items as context) */}
-        <div>
-          <div className="panel-section-label">Chat about this</div>
-          <div className="item-chat">
-            <form className="item-chat-input-row" onSubmit={handleChat}>
-              <input
-                className="item-chat-input"
-                placeholder="Ask something about this…"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-              />
-              <button
-                type="submit"
-                className="item-chat-btn"
-                disabled={chatLoading || !question.trim()}
-              >
-                {chatLoading ? "…" : "Ask"}
-              </button>
-            </form>
-            {chatError && <p className="item-chat-error">{chatError}</p>}
-            {answer && <div className="item-chat-answer">{answer}</div>}
-          </div>
-        </div>
         </div>
       </aside>
     </>
@@ -159,7 +185,7 @@ function DemoDetailPanel({ item, onClose }) {
 }
 
 // ── Demo dashboard ────────────────────────────────────────────────────────────
-export default function Demo() {
+export default function Demo({ onSignUp, onGoHome }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -169,12 +195,21 @@ export default function Demo() {
   const [activeCategory, setActiveCategory] = useState(null);
 
   // Derive unique categories from the data
-  const categories = [...new Set(items.map((i) => i.category).filter(Boolean))].sort();
+  const categories = [
+    ...new Set(items.map((i) => i.category).filter(Boolean)),
+  ].sort();
 
   useEffect(() => {
-    api.getDemoItems()
-      .then((data) => { setItems(data); setLoading(false); })
-      .catch((err) => { setError(err.message); setLoading(false); });
+    api
+      .getDemoItems()
+      .then((data) => {
+        setItems(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
   }, []);
 
   // ── Search ──────────────────────────────────────────────────────────────────
@@ -196,7 +231,12 @@ export default function Demo() {
     try {
       if (qaMode) {
         const res = await api.queryDemo(q);
-        setSearchResult({ type: "qa", query: q, answer: res.answer, sources: res.sources });
+        setSearchResult({
+          type: "qa",
+          query: q,
+          answer: res.answer,
+          sources: res.sources,
+        });
         setIsSearching(true);
       } else {
         const res = await api.searchDemo(q);
@@ -218,9 +258,8 @@ export default function Demo() {
   }
 
   // ── Displayed items ──────────────────────────────────────────────────────────
-  let displayItems = isSearching && searchResult?.type === "search"
-    ? searchResult.items
-    : items;
+  let displayItems =
+    isSearching && searchResult?.type === "search" ? searchResult.items : items;
 
   if (activeCategory) {
     displayItems = displayItems.filter((i) => i.category === activeCategory);
@@ -230,7 +269,17 @@ export default function Demo() {
     <div className="app-layout">
       <DemoBanner />
 
-      <TopBar itemCount={!isSearching && items.length > 0 ? items.length : null} />
+      <TopBar
+        itemCount={!isSearching && items.length > 0 ? items.length : null}
+        onLogoClick={onGoHome}
+        rightAction={
+          onSignUp ? (
+            <button className="topbar-btn-primary" onClick={onSignUp}>
+              Create an account
+            </button>
+          ) : undefined
+        }
+      />
 
       <main className="main-content">
         {/* Category pills */}
@@ -264,15 +313,26 @@ export default function Demo() {
                 autoComplete="off"
               />
               {query && (
-                <button type="button" className="clear-btn" onClick={handleClearSearch}>×</button>
+                <button
+                  type="button"
+                  className="clear-btn"
+                  onClick={handleClearSearch}
+                >
+                  ×
+                </button>
               )}
-              <button className="search-btn" disabled={searchLoading || !query.trim()}>
+              <button
+                className="search-btn"
+                disabled={searchLoading || !query.trim()}
+              >
                 {searchLoading ? "…" : qaMode ? "Ask" : "Search"}
               </button>
             </div>
           </form>
           {!query && (
-            <p className="search-hint">Type keywords to search, or ask a question in plain English</p>
+            <p className="search-hint">
+              Type keywords to search, or ask a question in plain English
+            </p>
           )}
         </div>
 
@@ -288,7 +348,12 @@ export default function Demo() {
                   <ul className="sources-list">
                     {searchResult.sources.map((s) => (
                       <li key={s.id}>
-                        <a className="source-link" href={s.url} target="_blank" rel="noopener noreferrer">
+                        <a
+                          className="source-link"
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
                           {s.title}
                         </a>
                       </li>
@@ -318,7 +383,11 @@ export default function Demo() {
         {!loading && !error && displayItems.length > 0 && (
           <div className="item-grid">
             {displayItems.map((item) => (
-              <DemoCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
+              <DemoCard
+                key={item.id}
+                item={item}
+                onClick={() => setSelectedItem(item)}
+              />
             ))}
           </div>
         )}
@@ -332,7 +401,10 @@ export default function Demo() {
 
       {/* Detail panel */}
       {selectedItem && (
-        <DemoDetailPanel item={selectedItem} onClose={() => setSelectedItem(null)} />
+        <DemoDetailPanel
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+        />
       )}
     </div>
   );

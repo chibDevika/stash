@@ -203,7 +203,13 @@ export default function App() {
     return <Login onEnterDemo={() => setView("demo")} />;
   }
 
-  if (view === "demo") return <Demo />;
+  if (view === "demo")
+    return (
+      <Demo
+        onSignUp={() => setView("login")}
+        onGoHome={() => setView("landing")}
+      />
+    );
 
   return (
     <div className="app-layout">
