@@ -4,12 +4,12 @@ JWT auth middleware — validates Supabase Bearer tokens on every protected requ
 Public paths (no token required): /health, /demo/*
 If neither SUPABASE_JWT_SECRET nor SUPABASE_URL is set, auth is disabled (local dev).
 
-Supports both RS256 (newer Supabase projects, verified via JWKS) and HS256 (legacy).
+Supports ES256, RS256 (verified via JWKS) and HS256 (legacy).
 """
 
 import httpx
 import jwt as pyjwt
-from jwt.algorithms import RSAAlgorithm
+from jwt.algorithms import RSAAlgorithm, ECAlgorithm
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -22,8 +22,8 @@ _PUBLIC_PREFIXES = ("/demo",)
 _jwks_cache: dict = {}
 
 
-async def _get_rs256_key(token: str):
-    """Fetch the matching RS256 public key from Supabase JWKS, with caching."""
+async def _get_jwks_key(token: str):
+    """Fetch the matching public key from Supabase JWKS, supporting RSA and EC keys."""
     header = pyjwt.get_unverified_header(token)
     kid = header.get("kid")
 
@@ -38,12 +38,15 @@ async def _get_rs256_key(token: str):
 
     for key_data in jwks.get("keys", []):
         key_kid = key_data.get("kid")
-        public_key = RSAAlgorithm.from_jwk(key_data)
+        kty = key_data.get("kty", "")
+        if kty == "EC":
+            public_key = ECAlgorithm.from_jwk(key_data)
+        else:
+            public_key = RSAAlgorithm.from_jwk(key_data)
         _jwks_cache[key_kid] = public_key
         if key_kid == kid:
             return public_key
 
-    # No kid match — return first key as fallback
     if _jwks_cache:
         return next(iter(_jwks_cache.values()))
     return None
@@ -79,14 +82,14 @@ async def verify_token(request: Request, call_next):
     alg = header.get("alg", "")
 
     try:
-        if alg == "RS256" and SUPABASE_URL:
-            public_key = await _get_rs256_key(token)
+        if alg in ("RS256", "ES256") and SUPABASE_URL:
+            public_key = await _get_jwks_key(token)
             if not public_key:
-                return JSONResponse(status_code=401, content={"detail": "Could not fetch RS256 public key"})
+                return JSONResponse(status_code=401, content={"detail": "Could not fetch public key from JWKS"})
             payload = pyjwt.decode(
                 token,
                 public_key,
-                algorithms=["RS256"],
+                algorithms=["RS256", "ES256"],
                 audience="authenticated",
             )
         else:
