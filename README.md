@@ -1,8 +1,8 @@
 # Stash
 
-A personal knowledge base for articles and YouTube videos. Save anything with one click, search by keyword or meaning, and ask questions answered from everything you've saved.
+A personal knowledge base for articles, YouTube videos, and PDFs. Save anything with one click, search by keyword or meaning, and ask questions answered from everything you've saved.
 
-**Self-hosted · Bring your own Gemini API key · One command to run**
+**Self-hosted · Bring your own Gemini API key · Open source**
 
 🔗 **[Live demo](https://stash-rho-one.vercel.app)** — try it without setting anything up
 
@@ -10,72 +10,135 @@ A personal knowledge base for articles and YouTube videos. Save anything with on
 
 ## What it does
 
-- **Save** any article or YouTube video via a Chrome extension — returns instantly, AI runs in the background
-- **Auto-organizes** into categories (AI & Tech, Science & Health, etc.) with AI-generated tags
-- **Search** by keyword, semantic meaning, or hybrid — or just ask a question in plain English
+- **Save** any article, YouTube video, or PDF — returns instantly, AI runs in the background
+- **Auto-organizes** into categories with AI-generated tags and summaries
+- **Search** by keyword, semantic meaning, or hybrid — or ask a question in plain English
 - **Per-item chat** — open any saved item and ask questions scoped to that specific content
-- **Manual tagging** — add your own tags to any item, filter by category
+- **Manual tagging** — add your own tags, filter by category
 
 ---
 
-## Prerequisites
+## Quickstart (hosted)
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- Google Chrome (for the extension)
+The easiest way to use Stash is against the hosted deployment — no server setup required.
+
+### 1. Create an account
+
+Go to **[stash-rho-one.vercel.app](https://stash-rho-one.vercel.app)** → click **Create an account** → sign up with email.
+
+### 2. Add your Gemini API key
+
+Get a free key at [aistudio.google.com](https://aistudio.google.com) (no credit card required), then paste it in **Settings** inside the app.
+
+### 3. Install the Chrome extension
+
+The extension is not on the Web Store yet — load it manually:
+
+1. [Download this repo](https://github.com/chibDevika/stash/archive/refs/heads/main.zip) and unzip it (or `git clone`)
+2. Open Chrome → go to `chrome://extensions`
+3. Enable **Developer mode** (toggle, top-right)
+4. Click **Load unpacked** → select the `extension/` folder
+
+The Stash icon will appear in your toolbar.
+
+### 4. Configure the extension
+
+Right-click the Stash icon → **Options**:
+
+| Setting       | Value                                             |
+| ------------- | ------------------------------------------------- |
+| Backend URL   | `https://stash-backend-production.up.railway.app` |
+| Dashboard URL | `https://stash-rho-one.vercel.app`                |
+
+Click **Save settings**.
+
+### 5. Start saving
+
+Navigate to any article, YouTube video, or PDF → click the Stash icon → **Save this page**.
+
+---
+
+## Self-hosting
+
+Deploy your own instance on Railway (backend) + Vercel (frontend) + Supabase (auth + DB).
+
+### What you'll need
+
+- A [Supabase](https://supabase.com) project (free tier)
+- A [Railway](https://railway.app) account
+- A [Vercel](https://vercel.com) account
 - A free [Gemini API key](https://aistudio.google.com)
 
+### 1. Supabase — set up auth and database
+
+1. Create a new Supabase project
+2. Go to **Settings → API** and note your:
+   - **Project URL** (`https://xxxx.supabase.co`)
+   - **Anon/public key**
+   - **JWT Secret** (under JWT Settings)
+   - **Service role key** (under API keys — keep this secret)
+3. Go to **Settings → Database** and note the **Connection string** (URI format)
+
+### 2. Railway — deploy the backend
+
+1. Fork or push this repo to GitHub
+2. Create a new Railway project → **Deploy from GitHub repo** → select your fork
+3. Set the root directory to `backend/`
+4. Add these environment variables in Railway:
+
+```
+GEMINI_API_KEY=your_gemini_key
+DATABASE_URL=your_supabase_connection_string
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_JWT_SECRET=your_jwt_secret
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+ALLOWED_ORIGINS=https://your-app.vercel.app
+ENVIRONMENT=production
+DEMO_MODE_ENABLED=true
+```
+
+Railway will auto-deploy using `backend/railway.json`. Note your Railway backend URL once deployed.
+
+### 3. Vercel — deploy the frontend
+
+1. Import the repo in Vercel → set the root directory to `webapp/`
+2. Add these environment variables:
+
+```
+VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key
+VITE_BACKEND_URL=https://your-backend.up.railway.app
+```
+
+3. Deploy. Note your Vercel frontend URL.
+4. Go back to Railway and update `ALLOWED_ORIGINS` to your Vercel URL.
+
+### 4. Install and configure the extension
+
+Follow steps 3–4 from [Quickstart](#quickstart-hosted) above, but use your own Railway and Vercel URLs.
+
 ---
 
-## Setup (under 10 minutes)
-
-### 1. Clone the repo
+## Local development
 
 ```bash
 git clone https://github.com/chibDevika/stash.git
 cd stash
+
+# Backend (port 8000)
+cd backend
+pip install -r requirements.txt
+# Create a .env file with at minimum: GEMINI_API_KEY=your_key
+uvicorn main:app --reload
+
+# Frontend (port 3000) — in a separate terminal
+cd webapp
+npm install
+# Create webapp/.env with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm run dev
 ```
 
-### 2. Add your Gemini API key
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and fill in your Gemini API key:
-
-```
-GEMINI_API_KEY=AIzaSy...your_key_here
-```
-
-Get a free key at [aistudio.google.com](https://aistudio.google.com) — no credit card required.
-
-### 3. Start everything
-
-```bash
-docker-compose up --build
-```
-
-This starts three services:
-- **db** — PostgreSQL with pgvector (vector search)
-- **backend** — FastAPI server on port 8000
-- **webapp** — React dashboard on port 3000
-
-First run takes 2–3 minutes to build. Once you see `Application startup complete`, open **http://localhost:3000**.
-
-### 4. Verify it's working
-
-```bash
-curl http://localhost:8000/health
-# → {"status":"ok"}
-```
-
-### 5. Load the Chrome extension
-
-1. Open Chrome → `chrome://extensions`
-2. Enable **Developer mode** (toggle top-right)
-3. Click **Load unpacked** → select the `extension/` folder
-
-The Stash icon will appear in your toolbar.
+Auth is disabled in local dev if `SUPABASE_JWT_SECRET` is not set — all endpoints are open.
 
 ---
 
@@ -83,37 +146,34 @@ The Stash icon will appear in your toolbar.
 
 ### Saving content
 
-Navigate to any article or YouTube video → click the Stash icon → click **Save this page**. The page is saved immediately (status: pending) and AI processing (summary, tags, category) runs in the background.
+Navigate to any article, YouTube video, or PDF → click the Stash icon → **Save this page**. The item is saved immediately and AI processing (summary, tags, category) runs in the background.
+
+You can also drag and drop a PDF directly onto the dashboard.
 
 ### Browsing your library
 
-Open [http://localhost:3000](http://localhost:3000). Your saved items appear as cards with title, summary, tags, category, and date. Click a card to open the detail panel.
+Open the dashboard. Items appear as cards with title, summary, tags, category, and date. Click a card to open the detail panel.
 
-### Filtering by category
+### Filtering
 
-Click any category pill (AI & Tech, Science & Health, etc.) to filter. Click **+ New category** to create your own.
+Click any category pill to filter. Click **+ New category** to create your own.
 
 ### Searching
 
 Type in the search bar:
+
 - **Keyword or phrase** → hybrid search (keyword + semantic)
-- **A question** (contains `?` or starts with what/how/why) → AI answers from your saved content with citations
+- **A question** (contains `?` or starts with what/how/why/etc.) → AI answers from your saved content with citations
 
 ### Per-item chat
 
-Click any card → in the slide-in panel, use **"Chat about this"** to ask questions scoped to that specific item only.
-
-### Manual tags
-
-In the detail panel, type a tag and press Enter to add it. Click `×` on any tag to remove it.
+Click any card → use **"Chat about this"** in the slide-in panel to ask questions scoped to that item only.
 
 ---
 
 ## Saving from iPhone
 
-iOS doesn't support the Web Share Target API, so the share sheet integration uses an **iOS Shortcut** that calls the API directly.
-
-### One-time setup
+Use an iOS Shortcut that calls the API directly:
 
 1. Open the **Shortcuts** app → tap **+**
 2. Add action: **Receive** [URLs] from Share Sheet
@@ -121,92 +181,23 @@ iOS doesn't support the Web Share Target API, so the share sheet integration use
 4. Add action: **Get Contents of URL**
    - URL: `https://your-railway-url.up.railway.app/save`
    - Method: **POST**
-   - Headers: `X-API-Key` = your `SECRET_KEY`, `Content-Type` = `application/json`
+   - Headers: `Content-Type` = `application/json`
    - Request Body: **JSON** → add field `url` = [URLs variable from step 3]
 5. Add action: **Show Notification** → `Saved to Stash ✓`
-6. Tap the shortcut name → rename to **"Stash"**
-7. Tap **⚙️** → enable **"Show in Share Sheet"**
+6. Rename to **Stash** → enable **"Show in Share Sheet"**
 
-### Using it
-
-From any app (Safari, YouTube, Chrome) → tap **Share** → tap **Stash** → notification appears → item saved.
-
----
-
-## Extension settings
-
-Right-click the Stash icon → **Options** (or click the gear icon in the popup) to configure:
-
-| Setting | Default | Description |
-|---|---|---|
-| Backend URL | `http://localhost:8000` | Your FastAPI backend |
-| Dashboard URL | `http://localhost:3000` | Opened when you click "Open dashboard" |
-| API Key | *(empty)* | Required for cloud deployments with `SECRET_KEY` set |
-
----
-
-## Stopping / restarting
-
-```bash
-# Stop (data preserved in Docker volume)
-docker-compose down
-
-# Start again
-docker-compose up
-
-# Wipe all data and start fresh
-docker-compose down -v && docker-compose up --build
-```
-
----
-
-## Troubleshooting
-
-### "Could not connect to the backend"
-- Make sure Docker Desktop is running
-- Run `docker-compose up` from the stash directory
-- Check: `curl http://localhost:8000/health`
-
-### "GEMINI_API_KEY is not set"
-- Confirm `.env` exists and contains your key
-- Restart Docker: `docker-compose down && docker-compose up`
-
-### Extension shows an error on YouTube
-- The video must have captions available (auto-generated captions work too)
-- Some videos disable transcripts entirely — these cannot be saved
-
-### "Could not fetch the page" for articles
-- Some sites block automated requests — this is a limitation of the free extraction approach
-- Try a different URL from the same site
-
-### Port conflicts
-Edit `.env`:
-```
-BACKEND_PORT=8001
-FRONTEND_PORT=3001
-```
-Then restart: `docker-compose down && docker-compose up`
-
----
-
-## Updating
-
-```bash
-git pull
-docker-compose up --build
-```
-
-Data is preserved in the Docker volume across updates.
+From any app → tap **Share** → tap **Stash** → done.
 
 ---
 
 ## Architecture
 
 ```
-Chrome extension
-    └── POST /save → backend (metadata stored immediately, AI runs async)
+Chrome extension / iOS Shortcut
+    └── POST /save → backend (stored immediately, AI runs async)
                         ├── trafilatura (article extraction)
                         ├── youtube-transcript-api (video transcripts)
+                        ├── pypdf (PDF text extraction)
                         └── Gemini 2.5 Flash (summary · tags · category · embedding)
 
 React webapp
@@ -214,12 +205,6 @@ React webapp
             └── PostgreSQL + pgvector (keyword FTS + cosine similarity)
 ```
 
-**Backend** (Python + FastAPI + SQLAlchemy):
-- `POST /save` — stores URL immediately, queues AI processing as a background task
-- `GET /search` — keyword (Postgres FTS) + semantic (pgvector cosine) + hybrid (RRF merge)
-- `POST /query` — embeds the question, fetches top 5 relevant items, Gemini answers from those sources
-- `POST /query/item/{id}` — per-item chat, scoped to a single item's content
-- `GET /categories` — list/create/delete user-defined categories
-- `GET /demo/*` — read-only pre-seeded demo data, no auth required
+**Auth**: Supabase handles signup/login. The backend validates Supabase JWTs on every request. Demo endpoints (`/demo/*`) are always public.
 
-**All your data stays local.** The only external calls are to the Gemini API.
+**All your data stays in your own database.** The only external calls are to the Gemini API.
