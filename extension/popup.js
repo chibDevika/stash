@@ -130,7 +130,8 @@ async function saveCurrentPage() {
 
     if (response.status === 401) {
       chrome.storage.local.remove("supabaseToken");
-      showError("Session expired. Open the Stash dashboard and sign in again.");
+      const body = await response.json().catch(() => ({}));
+      showError(`Auth failed: ${body.detail || "401 Unauthorized"}`);
       return;
     }
 
