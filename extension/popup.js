@@ -52,20 +52,22 @@ async function saveCurrentPage() {
     return;
   }
 
-  if (tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://")) {
-    showError("Can't save browser pages. Navigate to an article or YouTube video first.");
+  if (
+    tab.url.startsWith("chrome://") ||
+    tab.url.startsWith("chrome-extension://")
+  ) {
+    showError(
+      "Can't save browser pages. Navigate to an article or YouTube video first.",
+    );
     return;
   }
 
   showState("saving");
 
-  const { backendUrl, apiKey } = await chrome.storage.sync.get(["backendUrl", "apiKey"]);
+  const { backendUrl } = await chrome.storage.sync.get(["backendUrl"]);
   const apiBase = backendUrl || DEFAULT_BACKEND_URL;
 
   const headers = { "Content-Type": "application/json" };
-  if (apiKey) {
-    headers["X-API-Key"] = apiKey;
-  }
 
   try {
     const customTitle = document.getElementById("page-title").value.trim();
@@ -94,10 +96,13 @@ async function saveCurrentPage() {
     // 200 — saved successfully (status='pending', AI runs in background)
     showState("saved");
   } catch (err) {
-    if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
+    if (
+      err.message.includes("Failed to fetch") ||
+      err.message.includes("NetworkError")
+    ) {
       showError(
         `Could not connect to the backend at ${apiBase}.\n` +
-        "Make sure Docker is running: docker-compose up"
+          "Make sure Docker is running: docker-compose up",
       );
     } else {
       showError(err.message || "Something went wrong. Please try again.");

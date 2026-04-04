@@ -21,3 +21,4 @@ docker-compose.override.yml
 *.md
 !README.md
 backend/Dockerfile
+webapp/Dockerfile
