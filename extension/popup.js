@@ -65,9 +65,18 @@ async function saveCurrentPage() {
   showState("saving");
 
   const { backendUrl } = await chrome.storage.sync.get(["backendUrl"]);
+  const { supabaseToken } = await chrome.storage.local.get(["supabaseToken"]);
   const apiBase = backendUrl || DEFAULT_BACKEND_URL;
 
-  const headers = { "Content-Type": "application/json" };
+  if (!supabaseToken) {
+    showError("Not signed in. Open the Stash dashboard and sign in first.");
+    return;
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${supabaseToken}`,
+  };
 
   try {
     const customTitle = document.getElementById("page-title").value.trim();
@@ -84,7 +93,7 @@ async function saveCurrentPage() {
     }
 
     if (response.status === 401) {
-      showError("Unauthorized. Check your API key in the extension settings.");
+      showError("Session expired. Open the Stash dashboard and sign in again.");
       return;
     }
 

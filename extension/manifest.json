@@ -3,16 +3,20 @@
   "name": "Stash",
   "version": "1.0.0",
   "description": "Save any article or YouTube video to your personal knowledge base with one click.",
-  "permissions": [
-    "activeTab",
-    "storage"
-  ],
+  "permissions": ["activeTab", "storage", "scripting"],
   "options_page": "options.html",
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*",
     "https://*.railway.app/*",
     "https://*.vercel.app/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://*.vercel.app/*", "http://localhost:3000/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
   ],
   "action": {
     "default_popup": "popup.html",
