@@ -3,7 +3,7 @@
   "name": "Stash",
   "version": "1.0.0",
   "description": "Save any article or YouTube video to your personal knowledge base with one click.",
-  "permissions": ["activeTab", "storage", "scripting"],
+  "permissions": ["activeTab", "tabs", "storage", "scripting"],
   "options_page": "options.html",
   "host_permissions": [
     "http://localhost/*",

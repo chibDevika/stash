@@ -41,6 +41,40 @@ document.getElementById("open-dashboard-dup").addEventListener("click", (e) => {
   openDashboard();
 });
 
+// Read the Supabase session token — first from cache, then by injecting into
+// any open Stash tab, so the popup works even if the content script hasn't run.
+async function getSupabaseToken(backendUrl) {
+  // 1. Try the cached token from the content script
+  const { supabaseToken } = await chrome.storage.local.get(["supabaseToken"]);
+  if (supabaseToken) return supabaseToken;
+
+  // 2. Find an open Stash tab and read localStorage directly
+  const { frontendUrl } = await chrome.storage.sync.get(["frontendUrl"]);
+  const base = (frontendUrl || DEFAULT_FRONTEND_URL).replace(/\/$/, "");
+  const tabs = await chrome.tabs.query({ url: base + "/*" });
+  if (!tabs.length) return null;
+
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tabs[0].id },
+    func: () => {
+      const key = Object.keys(localStorage).find(
+        (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
+      );
+      if (!key) return null;
+      try {
+        const session = JSON.parse(localStorage.getItem(key));
+        return session?.access_token || null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  const token = results?.[0]?.result || null;
+  if (token) chrome.storage.local.set({ supabaseToken: token });
+  return token;
+}
+
 // Save button + retry
 document.getElementById("save-btn").addEventListener("click", saveCurrentPage);
 document.getElementById("retry-btn").addEventListener("click", saveCurrentPage);
@@ -65,17 +99,17 @@ async function saveCurrentPage() {
   showState("saving");
 
   const { backendUrl } = await chrome.storage.sync.get(["backendUrl"]);
-  const { supabaseToken } = await chrome.storage.local.get(["supabaseToken"]);
   const apiBase = backendUrl || DEFAULT_BACKEND_URL;
 
-  if (!supabaseToken) {
+  const token = await getSupabaseToken(backendUrl);
+  if (!token) {
     showError("Not signed in. Open the Stash dashboard and sign in first.");
     return;
   }
 
   const headers = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${supabaseToken}`,
+    Authorization: `Bearer ${token}`,
   };
 
   try {
