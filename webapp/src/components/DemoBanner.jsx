@@ -5,7 +5,7 @@ export default function DemoBanner() {
     <div className="demo-banner">
       You're viewing a demo.{" "}
       <a
-        href="https://github.com/devikachib/stash"
+        href="https://github.com/chibDevika/stash"
         target="_blank"
         rel="noopener noreferrer"
         className="demo-banner-link"

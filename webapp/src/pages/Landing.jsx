@@ -25,7 +25,7 @@ export default function Landing({ onEnterDemo, onSignIn }) {
           </button>
           <a
             className="landing-btn-outline"
-            href="https://github.com/devikachib/stash"
+            href="https://github.com/chibDevika/stash"
             target="_blank"
             rel="noopener noreferrer"
           >
